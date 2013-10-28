@@ -52,14 +52,15 @@ subroutine SOLVE (maxl, rhs, lrwork, liwork, soln, mu, A_log, &
       end do
 
       t0 = etime(timep)
+      call PRINI(0, 13)
       call DGMRES(norder, rhs, soln, nelt, ia, ja, a, isym, MATVEC, &
                   MSOLVE, itol, tol, itmax, iter, err,ierr, 6, sb, sx, &
                   gmwork, lrwork, igwork, liwork, rw, iw)
-      call PRINI (6,13)
-      call PRINF ('  # GMRES ITERATIONS = *',iter,1)
+      call PRINI(6, 13)
+      call PRINF('  # GMRES ITERATIONS = *',iter,1)
       if (ierr.gt.2) then
-         call PRINF ('  SOMETHING WRONG IN GMRES, IERR = *',ierr,1)
-         call PRINF ('  iwork = *',igwork,10)
+         call PRINF('  SOMETHING WRONG IN GMRES, IERR = *',ierr,1)
+         call PRINF('  iwork = *',igwork,10)
          stop
         elseif (ierr.ge.0) then
          t1 = etime(timep)
@@ -111,8 +112,8 @@ subroutine MATVEC (N, XX, YY, NELT, IA, JA, A, ISYM)
       
       t1 = etime(timep)
 
-      WRITE(13,*) 'TIME IN SECONDS FOR MATVEC = ', t1 - t0
-      WRITE(6,*) 'TIME IN SECONDS FOR MATVEC = ', t1 - t0
+!      WRITE(13,*) 'TIME IN SECONDS FOR MATVEC = ', t1 - t0
+!      WRITE(6,*) 'TIME IN SECONDS FOR MATVEC = ', t1 - t0
 
 end subroutine MATVEC
 
@@ -152,7 +153,7 @@ subroutine FASMVP(n, u, w, source, dipvec, charge, dipstr, pot, grad, &
    integer :: ier, iprec, nsource, ifcharge, ifdipole, ifpot, ifgrad, ifhess
 !
 ! local work variables
-   integer :: i, j
+   integer :: i
    real(kind=8) self, cauchy
 
 ! set density and source points for fmm call
