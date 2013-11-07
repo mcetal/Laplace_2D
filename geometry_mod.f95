@@ -24,7 +24,7 @@ module geometry_mod
 ! Discretization of domain
    real(kind=8) :: x(nmax), y(nmax), ds_dth(nmax), kappa(nmax), &
                    theta(nmax)
-   complex(kind=16) :: z(nmax), dz(nmax)
+   complex(kind=8) :: z(nmax), dz(nmax)
       
 contains
    
@@ -155,7 +155,8 @@ subroutine BUILD_DOMAIN()
                kappa(i) = -(xdot*yddot-ydot*xddot)/ds_dth(i)**3
             endif 
          end do   
-         call PRIN2('z = *', z((kbod-k0)*nd+1), nd)
+         call PRIN2('z = *', z((kbod-k0)*nd+1), 2*nd)
+         call PRIN2('dz = *', dz((kbod-k0)*nd+1), 2*nd)
          call PRIN2('kappa = *', kappa((kbod-k0)*nd+1), nd)
          istart = istart + nd  
       end do

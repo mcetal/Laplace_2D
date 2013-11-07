@@ -163,8 +163,8 @@ subroutine FASMVP(n, u, w, source, dipvec, charge, dipstr, pot, grad, &
          dipstr(i) = h*u(i)*ds_dth(i)/(2.d0*pi)
          source(1,i) = dreal(z(i))
          source(2,i) = dimag(z(i))
-         dipvec(1,i) = dreal(-eye*dz(i))
-         dipvec(2,i) = dimag(-eye*dz(i))
+         dipvec(1,i) = dreal(-eye*dz(i))/ds_dth(i)
+         dipvec(2,i) = dimag(-eye*dz(i))/ds_dth(i)
       end do
 
 ! set parameters for FMM routine DAPIF2
@@ -199,6 +199,7 @@ subroutine FASMVP(n, u, w, source, dipvec, charge, dipstr, pot, grad, &
       do i = 1, nbk
          self = 0.25d0*h*kappa(i)*ds_dth(i)/pi
          cauchy = self*u(i) + dreal(pot(i))
+         call prin2(' cauchy = *', cauchy, 1)
          w(i) = 0.5d0*u(i) + cauchy
       end do
 

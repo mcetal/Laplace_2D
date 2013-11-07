@@ -260,7 +260,7 @@ real(kind=8) function U_EXACT(bounded, z)
 ! harmonic mode
       n = 2
       A = 1.d0
-      B = 0.d0
+      B = 0.5d0
 !
 ! if bounded,
 !   u = A r^n cos(n theta) + B r^n sin(n theta)
@@ -321,10 +321,10 @@ subroutine GET_SOL_TAR(ntar, z_tar, mu, A_log, bounded, u_tar)
          
          u_ex = U_EXACT(bounded, z_tar(itar))
          err = max(err,dabs(u_ex-u_tar(itar)))
-         call PRINF('itar = *', itar, 1)
-         call PRIN2('   u_exact = *', u_ex, 1)
-         call PRIN2('   u_tar = *', u_tar(itar), 1)
-         call PRIN2('   diff = *', u_ex-u_tar(itar), 1)
+!!!         call PRINF('itar = *', itar, 1)
+!!!         call PRIN2('   u_exact = *', u_ex, 1)
+!!!         call PRIN2('   u_tar = *', u_tar(itar), 1)
+!!!         call PRIN2('   diff = *', u_ex-u_tar(itar), 1)
          
       end do
       call PRIN2 (' MAX ERROR AT TARGET POINTS = *', err, 1)
