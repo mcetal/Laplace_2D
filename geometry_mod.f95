@@ -1,5 +1,6 @@
 !
-! comman variables etc for laplace_2d
+! comman variables etc for laplace_2d, including matlab plotting routines
+! make sure a directory "mat_plots/" exists
 !
 module geometry_mod
 
@@ -16,6 +17,9 @@ module geometry_mod
    real(kind=8) :: ak(kmax), bk(kmax)
    integer :: ncyc(kmax)
    complex(kind=8) :: zk(kmax)
+!
+! Type of domain
+   logical :: bounded
 !
 ! Constants and mesh spacing
    real(kind=8) :: pi, h
@@ -130,6 +134,12 @@ subroutine BUILD_DOMAIN()
    implicit none
    integer :: i, kbod, istart
    real(kind=8) xp, yp, xdot, ydot, xddot, yddot, th
+   character(32) :: options
+   
+!
+! open unit for matlab plotting
+      open(unit = 31, file = 'mat_plots/geo_contours.m')
+      options = '''k'',''LineWidth'',2'
    
 !
 ! construct theta
@@ -155,12 +165,91 @@ subroutine BUILD_DOMAIN()
                kappa(i) = -(xdot*yddot-ydot*xddot)/ds_dth(i)**3
             endif 
          end do   
+         call Z_PLOT(z((kbod-k0)*nd+1), nd, options, 31)
          call PRIN2('z = *', z((kbod-k0)*nd+1), 2*nd)
          call PRIN2('dz = *', dz((kbod-k0)*nd+1), 2*nd)
          call PRIN2('kappa = *', kappa((kbod-k0)*nd+1), nd)
          istart = istart + nd  
       end do
+      
+      close(31)
 
 end subroutine BUILD_DOMAIN
 
+!------------------
+! PLOTTING ROUTINES
+!------------------
+
+!----------------------------------------------------------------------
+
+subroutine Z_PLOT(z, n, options, iw)
+!
+! This subroutine writes out the curve specified by its nodes z in 
+! complex plane for matlab plotting. It assumes the curve is not closed,  
+! i.e. z(1) <> z(n)
+! Inputs:
+!    z:  points on curve
+!    n: number of points on curve
+!    options: a string for plotting options for matlab command "plot"
+!      this string should look like '''string'''
+!    iw:  the fortran unit number on which the output data set is written
+! Outputs:
+!    none
+! 
+   implicit none
+   integer, intent(in) :: n, iw
+   complex(kind=8), intent(in) :: z(n)
+   character(32), intent(in) :: options
+! local variables
+   character(32) :: plot_str, end_bracket
+   integer :: i
+   
+      plot_str = 'plot(x(:,1),x(:,2),'
+      end_bracket = ')'
+
+      write(iw, *) 'x = ['
+      write(iw, '(2(D15.6))') (z(i), i = 1, n)
+      write(iw, '(2(D15.6))') z(1)
+      write(iw, *) '];'
+      write(iw, *) trim(plot_str) // trim(options) // &
+                   trim(end_bracket)
+      write(iw, *) 'hold on'
+      
+end subroutine Z_PLOT
+
+!----------------------------------------------------------------------
+
+subroutine XY_PLOT(x, y, n, options, iw)
+!
+! This subroutine writes out the curve specified by its nodes x, y
+! for matlab plotting. It assumes the curve is not closed, i.e. 
+! (x(1), y(1)) <> (x(n), y(n))
+! Inputs:
+!    (x, y):  points on curve
+!    n: number of points on curve
+!    options: a string for plotting options for matlab command "plot"
+!    iw:  the fortran unit number on which the output data set is written
+! Outputs:
+!    none
+! 
+   implicit none
+   integer, intent(in) :: n, iw
+   real(kind=8), intent(in) :: x(n), y(n)
+   character(32), intent(in) :: options
+! local variables
+   character(32) :: plot_str, end_bracket
+   integer :: i
+   
+      plot_str = 'plot(x(:,1),x(:,2),'
+      end_bracket = ')'
+
+      write(iw, *) 'x = ['
+      write(iw, '(2(D15.6))') (x(i), y(i), i = 1, n)
+      write(iw, '(2(D15.6))') x(1), y(1)
+      write(iw, *) '];'
+      write(iw, *) trim(plot_str) // trim(options) // &
+                   trim(end_bracket)
+      write(iw, *) 'hold on'
+      
+end subroutine XY_PLOT
 end module geometry_mod

@@ -1,7 +1,7 @@
 
 !----------------------------------------------------------------------
 
-subroutine SOLVE (maxl, rhs, lrwork, liwork, soln, mu, A_log, &
+subroutine SOLVE (maxl, rhs, lrwork, liwork, dirichlet, soln, mu, A_log, &
                   gmwork, igwork )
 
 !
@@ -11,6 +11,7 @@ subroutine SOLVE (maxl, rhs, lrwork, liwork, soln, mu, A_log, &
 !   rhs: rhs of system
 !   lrwork: size of real workspace for GMRES
 !   liwork: size of integer workspace for GMRES
+!   dirichlet: logical, true if dirichlet bvp
 ! Returns:
 !   soln: solution
 !   mu: density of integral equation
@@ -18,15 +19,17 @@ subroutine SOLVE (maxl, rhs, lrwork, liwork, soln, mu, A_log, &
 !   gmwork: real workspace for GMRES
 !   igwork: integer workspace for GMRES
 
-   use geometry_mod, only: k0, k, nd, nbk
+   use geometry_mod, only: k0, k, nd, nbk, bounded
    implicit none
    integer, intent(in) :: maxl, lrwork, liwork
    real(kind=8), intent(in) :: rhs(nbk)
+   logical, intent(in) :: dirichlet
    integer, intent(out) :: igwork(liwork)
    real(kind=8), intent(out) :: soln(*), mu(nbk), A_log(k), gmwork(lrwork)
    external MATVEC, MSOLVE
    real(kind=4) t0, t1, tsec, timep(2), etime
-   integer :: i, itol, isym, norder, ierr, iw, nelt, ia, ja, iter, itmax
+   integer :: i, itol, isym, norder, ierr, iw, nelt, ia, ja, iter, itmax, &
+              kbod
    real(kind=8) :: tol, a, err, sb, sx, rw
 
 !
@@ -37,7 +40,7 @@ subroutine SOLVE (maxl, rhs, lrwork, liwork, soln, mu, A_log, &
       do i = 2, liwork
          igwork(i) = 0
       end do
-      norder = nbk
+      norder = nbk + k
 
 !  Preconditioner flag 
       igwork(4) = 0
@@ -68,11 +71,15 @@ subroutine SOLVE (maxl, rhs, lrwork, liwork, soln, mu, A_log, &
          call PRIN2 (' TIME TAKEN IN GMRES = *', tsec, 1)
       end if
 
-!  unpack RHS into U
+!  unpack RHS into U and A_log
       do i = 1,nbk
          mu(i) = soln(i)
       end do 
+      do kbod = 1, k
+         A_log(kbod) = soln(nbk + kbod)
+      end do
       call PRIN2(' mu = *', mu, nbk) 
+      call PRIN2(' A_log = *', A_log, k)
 
 end subroutine SOLVE
 
@@ -93,7 +100,7 @@ subroutine MATVEC (N, XX, YY, NELT, IA, JA, A, ISYM)
 ! Dummy stuff:
 !   IA, JA, A, ISYM
 !
-   use geometry_mod, only: nmax
+   use geometry_mod, only: nmax, kmax
    implicit none
    integer, intent(in) :: N, NELT, IA, JA, ISYM
    real(kind=8), intent(in) :: XX(N), A
@@ -104,11 +111,14 @@ subroutine MATVEC (N, XX, YY, NELT, IA, JA, A, ISYM)
    real(kind=8) :: source(2*nmax), dipvec(2*nmax)
    complex(kind=8) :: charge(nmax), dipstr(nmax), pot(nmax), &
                       grad(2*nmax), hess(3*nmax)
+!
+! local arrays
+   real(kind=8) :: A_log(kmax)
 
       t0 = etime(timep)
 
-      call FASMVP (N, xx, yy, source, dipvec, charge, dipstr, pot, &
-                   grad, hess)
+      call FASMVP (N, xx, yy, A_log, source, dipvec, charge, &
+                   dipstr, pot, grad, hess)
       
       t1 = etime(timep)
 
@@ -132,20 +142,20 @@ end subroutine MSOLVE
 
 !----------------------------------------------------------------------
 
-subroutine FASMVP(n, u, w, source, dipvec, charge, dipstr, pot, grad, &
-                  hess)
+subroutine FASMVP(n, u, w, A_log, source, dipvec, charge, dipstr,  &
+                  pot, grad, hess)
 
 !
 ! Calculates the matrix vector product
 !     u is the current guess for the density
-!     w is (0.5I + K) u
+!     w is (0.5I + K) u + sum A_log 
 ! 
 !
    use geometry_mod
    implicit none
    integer, intent(in) :: n
    real(kind=8), intent(in) :: u(n)
-   real(kind=8), intent(out) :: w(n), source(2,n), dipvec(2,n)
+   real(kind=8), intent(out) :: A_log(k), w(n), source(2,n), dipvec(2,n)
    complex(kind=8), intent(out) :: charge(n), dipstr(n), pot(n), &
                                    grad(2,n), hess(3,n)
 !
@@ -153,8 +163,8 @@ subroutine FASMVP(n, u, w, source, dipvec, charge, dipstr, pot, grad, &
    integer :: ier, iprec, nsource, ifcharge, ifdipole, ifpot, ifgrad, ifhess
 !
 ! local work variables
-   integer :: i
-   real(kind=8) self, cauchy
+   integer :: i, kbod, istart
+   real(kind=8) self, cauchy, far_field
 
 ! set density and source points for fmm call
       
@@ -166,7 +176,21 @@ subroutine FASMVP(n, u, w, source, dipvec, charge, dipstr, pot, grad, &
          dipvec(1,i) = dreal(-eye*dz(i))/ds_dth(i)
          dipvec(2,i) = dimag(-eye*dz(i))/ds_dth(i)
       end do
+      
+! get current values of log sources
+      do kbod = 1, k
+         A_log(kbod) = u(nbk + kbod)
+      end do
 
+! calculate far field if unbounded problem
+      far_field = 0.d0
+      if (.not. bounded) then
+         do i = 1, nbk
+            far_field = far_field + u(i) * ds_dth(i)
+         end do
+         far_field = far_field/(2.d0*pi)
+      end if 
+         
 ! set parameters for FMM routine DAPIF2
 	
       iprec = 5   ! err < 10^-14
@@ -194,13 +218,41 @@ subroutine FASMVP(n, u, w, source, dipvec, charge, dipstr, pot, grad, &
          stop
       end if
 	  
-
 ! Discrete integral operator
       do i = 1, nbk
          self = 0.25d0*h*kappa(i)*ds_dth(i)/pi
          cauchy = self*u(i) + dreal(pot(i))
          call prin2(' cauchy = *', cauchy, 1)
-         w(i) = 0.5d0*u(i) + cauchy
+         w(i) = 0.5d0*u(i) + cauchy + far_field
+         
+!      add on log sources
+         do kbod = 1, k
+            w(i) = w(i)  &
+                    + A_log(kbod)*dlog(cdabs(z(i) - zk(kbod + 1 - k0)))
+         end do
       end do
+      
+! Constraints for multiply-connected domain
+      if (bounded) then
+         istart = nd
+         do kbod = 1, k
+            do i = 1, nd
+               w(nbk + kbod) = w(nbk + kbod) + u(istart+i)
+            end do
+            istart = istart + nd
+         end do
+       else
+         istart = nd
+         w(nbk + 1) = 0.d0
+         do kbod = 2, k
+            w(nbk + 1) = w(nbk + 1) + A_log(kbod)
+         end do
+         do kbod = 2, k
+            do i = 1, nd
+               w(nbk + kbod) = w(nbk + kbod) + u(istart+i)
+            end do
+            istart = istart + nd
+         end do
+      end if 
 
 end subroutine FASMVP

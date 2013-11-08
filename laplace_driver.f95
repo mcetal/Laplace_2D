@@ -31,7 +31,7 @@ program LAPLACE_2D
    integer :: igwork(liwork)
 !
 ! Problem type
-   logical :: debug, bounded, dirichlet
+   logical :: debug, dirichlet
 !
 ! Target points
    integer, parameter :: ntar = 20
@@ -44,7 +44,7 @@ program LAPLACE_2D
 
 !
 ! Initialize Geometry, problem type, and system size
-   call INITIALIZE(debug, bounded, dirichlet)
+   call INITIALIZE(debug, dirichlet)
    call INIT_HOLE_GEO() 
    call BUILD_DOMAIN()
    
@@ -54,23 +54,23 @@ program LAPLACE_2D
    
 !
 ! Set boundary conditions
-   call GET_BCS(debug, bounded, rhs)   
+   call GET_BCS(debug, dirichlet, rhs)   
    call PRIN2(' rhs = *', rhs, nbk)
    
 !
 ! Solve integral equation
-   call SOLVE (maxl, rhs, lrwork, liwork, soln, mu, A_log, &
+   call SOLVE (maxl, rhs, lrwork, liwork, dirichlet, soln, mu, A_log, &
                gmwork, igwork)
                
 !
 ! Check solution at target points
-   if (debug) call GET_SOL_TAR(ntar, z_tar, mu, A_log, bounded, u_tar)
+   if (debug) call GET_SOL_TAR(ntar, z_tar, mu, A_log, u_tar)
 
 end program LAPLACE_2D
 
 !----------------------------------------------------------------------
 
-subroutine INITIALIZE(debug, bounded, dirichlet)
+subroutine INITIALIZE(debug, dirichlet)
 !
 ! reads in k0, k, nd from module and calculates nbk
 ! describes problem type
@@ -78,9 +78,10 @@ subroutine INITIALIZE(debug, bounded, dirichlet)
 !   debug :: true if in debugging mode
 !   bounded :: true if bounded domain, false if unbounded
 !   dirichlet :: true if Dirichlet BVP, false if Neumann
-   use geometry_mod, only: pi, eye, kmax, npmax, nbk, k0, k, nd, h
+   use geometry_mod, only: pi, eye, kmax, npmax, nbk, k0, k, nd, h, &
+                           bounded
    implicit none
-   logical, intent(out) :: debug, bounded, dirichlet
+   logical, intent(out) :: debug, dirichlet
 
 !
 ! initialize constants
@@ -89,8 +90,8 @@ subroutine INITIALIZE(debug, bounded, dirichlet)
 
 !
 ! initialize number of holes and points per hole
-      k0 = 0
-      k = 0
+      k0 = 1
+      k = 1
       nd = 64
       bounded = k0==0
       print *, 'bounded = ', bounded
@@ -137,9 +138,9 @@ subroutine INIT_HOLE_GEO()
    implicit none
    
       ak(1) = 1.d0
-      bk(1) = 0.8d0
-      ncyc(1) = 0
-      zk(1) = dcmplx(0.d0,0.d0)
+      bk(1) = 0.2d0
+      ncyc(1) = 3
+      zk(1) = dcmplx(0.2d0,-2.d0)
       
       ak(2) = 0.5d0
       bk(2) = 0.5d0
@@ -159,12 +160,14 @@ subroutine GET_TARGETS(ntar, z_tar)
 ! Returns:
 !   z_tar: location of target points in complex plain
 !
-   use geometry_mod, only: pi, k0, k, zk, ak, bk
+   use geometry_mod, only: pi, k0, k, zk, ak, bk, Z_PLOT
    implicit none
    integer, intent(in) :: ntar
    complex(kind=8), intent(out) :: z_tar(ntar)
+! local
    integer :: i
    real(kind=8) :: dth, theta, a_tar, b_tar
+   character(32) :: options
    
       dth = 2.d0*pi/ntar
       
@@ -177,8 +180,8 @@ subroutine GET_TARGETS(ntar, z_tar)
             a_tar = 0.5d0*(ak(1) + ak(2))
             b_tar = 0.5d0*(bk(1) + bk(2))
          elseif ( (k0==1) .and. (k==1) ) then
-            a_tar = 0.5d0*(ak(1) + ak(2))
-            b_tar = 0.5d0*(bk(1) + bk(2))
+            a_tar = 2.d0*max(ak(1), bk(1))
+            b_tar = a_tar
          else
             print *, 'Cannot calculate target points for this geometry'
             print *, 'Errors in solution check may result'
@@ -188,27 +191,39 @@ subroutine GET_TARGETS(ntar, z_tar)
       
       call PRIN2(' z_tar = *', z_tar, 2*ntar)
       
+! dump out for plotting
+      open (unit = 21, file = 'mat_plots/target_points.m', &
+            status = 'unknown')
+      options = '''r*'''
+      call Z_PLOT( z_tar, ntar, options, 21)
+      close(21)
+      
 end subroutine GET_TARGETS
 !----------------------------------------------------------------------
 
-subroutine GET_BCS(debug, bounded, rhs)
+subroutine GET_BCS(debug, dirichlet, rhs)
 
 ! Constructs right hand side of integral equation
 ! Inputs:
 !   debug: logical for debugging mode
-!   bounded: logical for bounded domain 
+!   dirichlet: logical, true for Dirichlet BVP
 ! Returns:
 !   rhs: right hand size of integral equation
 
-   use geometry_mod, only: k0, k, nd, nbk, zk, z
+   use geometry_mod, only: k0, k, nd, nbk, zk, z, bounded
    implicit none
-   logical, intent(in) :: debug, bounded
-   real(kind=8), intent(out) :: rhs(nbk)
+   logical, intent(in) :: debug, dirichlet
+   real(kind=8), intent(out) :: rhs(nbk+k)
    real(kind=8) :: U_EXACT
-   integer :: i
+   integer :: i, kbod
    
       do i = 1, nbk
 	 rhs(i) = U_EXACT(bounded, z(i))
+      end do
+      
+!   constraints for multiply connected domain
+      do kbod = 1, k
+         rhs(nbk + kbod) = 0.d0
       end do
 
 end subroutine GET_BCS
@@ -280,7 +295,7 @@ end function U_EXACT
 
 !----------------------------------------------------------------------
 
-subroutine GET_SOL_TAR(ntar, z_tar, mu, A_log, bounded, u_tar)
+subroutine GET_SOL_TAR(ntar, z_tar, mu, A_log, u_tar)
 
 ! Calculate solution at target points and check accuracy
 ! Inputs:
@@ -292,12 +307,11 @@ subroutine GET_SOL_TAR(ntar, z_tar, mu, A_log, bounded, u_tar)
 ! Returns:
 !   u_tar: solution
 
-   use geometry_mod, only: k0, k, nd, nbk, pi, h, eye, z, dz
+   use geometry_mod, only: k0, k, nd, nbk, pi, h, eye, z, dz, bounded
    implicit none
    integer, intent(in) :: ntar
    real(kind=8), intent(in) :: mu(nbk), A_log(k)
    complex(kind=8), intent(in) :: z_tar(nbk)
-   logical, intent(in) :: bounded
    real(kind=8), intent(out) :: u_tar(nbk)
 !
 ! local
