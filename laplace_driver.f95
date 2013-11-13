@@ -268,7 +268,7 @@ real(kind=8) function U_EXACT(bounded, z)
    logical, intent(in) :: bounded
    complex(kind=8), intent(in) :: z 
    complex(kind=8) :: zdis
-   integer :: n
+   integer :: n, kbod
    real(kind=8) :: theta, r, A, B
    
 !
@@ -285,10 +285,20 @@ real(kind=8) function U_EXACT(bounded, z)
       zdis = z-zk(1)
       call POLAR_COORD(zdis, theta, r)
 
-      if (bounded) then 
+      if ((bounded) .and. (k == 0)) then 
          U_EXACT = (A*dcos(n*theta) + B*dsin(n*theta)) * r**n
-       else
+      elseif (bounded) then
+         U_EXACT = 0.d0
+         do kbod = 1, k
+            U_EXACT = U_EXACT + 1.d0/(z-zk(kbod+1))
+         end do
+      elseif (k == 1) then
          U_EXACT = (A*dcos(n*theta) + B*dsin(n*theta)) / r**n
+      else
+         U_EXACT = 0.d0
+         do kbod = 1, k
+            U_EXACT = U_EXACT + 1.d0/(z-zk(kbod))
+         end do         
       end if
 
 end function U_EXACT
