@@ -47,6 +47,7 @@ program LAPLACE_2D
    call INITIALIZE(debug, dirichlet)
    call INIT_HOLE_GEO() 
    call BUILD_DOMAIN()
+   call BUILD_GRID()
    
 !
 ! Get target points
@@ -79,7 +80,7 @@ subroutine INITIALIZE(debug, dirichlet)
 !   bounded :: true if bounded domain, false if unbounded
 !   dirichlet :: true if Dirichlet BVP, false if Neumann
    use geometry_mod, only: pi, eye, kmax, npmax, nbk, k0, k, nd, h, &
-                           bounded
+                           bounded, nx, ny, ngrd_max
    implicit none
    logical, intent(out) :: debug, dirichlet
 
@@ -90,9 +91,9 @@ subroutine INITIALIZE(debug, dirichlet)
 
 !
 ! initialize number of holes and points per hole
-      k0 = 1
+      k0 = 0
       k = 1
-      nd = 64
+      nd = 1024
       bounded = k0==0
       print *, 'bounded = ', bounded
 !
@@ -121,6 +122,16 @@ subroutine INITIALIZE(debug, dirichlet)
 ! initialize problem type
       debug = .true.
       dirichlet = .true.
+      
+!
+! initialize grid size
+      nx = 200
+      ny = 200
+      if (nx*ny > ngrd_max) then
+         print *, 'Too many grid points!'
+         print *, 'nx*ny = ', nx*ny
+         print *, 'ngrd_max = ', ngrd_max
+      end if
 
 end subroutine INITIALIZE
 
@@ -138,9 +149,9 @@ subroutine INIT_HOLE_GEO()
    implicit none
    
       ak(1) = 1.d0
-      bk(1) = 0.2d0
-      ncyc(1) = 3
-      zk(1) = dcmplx(0.2d0,-2.d0)
+      bk(1) = 0.8d0
+      ncyc(1) = 0
+      zk(1) = dcmplx(0.d0, 0.d0)
       
       ak(2) = 0.5d0
       bk(2) = 0.5d0
