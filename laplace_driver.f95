@@ -91,8 +91,8 @@ subroutine INITIALIZE(debug, dirichlet)
 
 !
 ! initialize number of holes and points per hole
-      k0 = 0
-      k = 1
+      k0 = 1
+      k = 2
       nd = 1024
       bounded = k0==0
       print *, 'bounded = ', bounded
@@ -149,14 +149,14 @@ subroutine INIT_HOLE_GEO()
    implicit none
    
       ak(1) = 1.d0
-      bk(1) = 0.8d0
-      ncyc(1) = 0
-      zk(1) = dcmplx(0.d0, 0.d0)
+      bk(1) = 0.2d0
+      ncyc(1) = 3
+      zk(1) = dcmplx(-1.d0, -0.5d0)
       
       ak(2) = 0.5d0
-      bk(2) = 0.5d0
-      ncyc(2) = 0
-      zk(2) = dcmplx(0.d0,0.d0)
+      bk(2) = 0.1d0
+      ncyc(2) = 4
+      zk(2) = dcmplx(1.d0,0.5d0)
       
 end subroutine INIT_HOLE_GEO
 

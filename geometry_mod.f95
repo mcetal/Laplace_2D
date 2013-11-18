@@ -343,6 +343,8 @@ subroutine BUILD_GRID()
          do j = 1, ny
             if (i_grd(i,j) .ge. 0) then  
                i_grd(i, j) = k0 + DNINT(dreal(pottarg(istart)))
+             else
+               i_grd(i, j) = 0
             end if
             istart = istart + 1 
          end do
