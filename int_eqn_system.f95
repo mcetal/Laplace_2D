@@ -61,15 +61,15 @@ subroutine SOLVE (maxl, rhs, lrwork, liwork, dirichlet, soln, mu, A_log, &
                   MSOLVE, itol, tol, itmax, iter, err,ierr, 6, sb, sx, &
                   gmwork, lrwork, igwork, liwork, rw, iw)
       call PRINI(6, 13)
-      call PRINF('  # GMRES ITERATIONS = *',iter,1)
+      call PRINF('# GMRES ITERATIONS = *',iter,1)
       if (ierr.gt.2) then
-         call PRINF('  SOMETHING WRONG IN GMRES, IERR = *',ierr,1)
-         call PRINF('  iwork = *',igwork,10)
+         call PRINF('SOMETHING WRONG IN GMRES, IERR = *',ierr,1)
+         call PRINF('iwork = *',igwork,10)
          stop
         elseif (ierr.ge.0) then
          t1 = etime(timep)
          tsec = t1 - t0
-         call PRIN2 (' TIME TAKEN IN GMRES = *', tsec, 1)
+         call PRIN2 ('TIME TAKEN IN GMRES = *', tsec, 1)
       end if
 
 !  unpack RHS into U and A_log
@@ -80,7 +80,7 @@ subroutine SOLVE (maxl, rhs, lrwork, liwork, dirichlet, soln, mu, A_log, &
          A_log(kbod) = soln(nbk + kbod)
       end do
 !      call PRIN2(' mu = *', mu, nbk) 
-      call PRIN2(' A_log = *', A_log, k)
+      call PRIN2('A_log = *', A_log, k)
 
 end subroutine SOLVE
 

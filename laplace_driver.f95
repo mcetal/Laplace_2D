@@ -19,7 +19,7 @@ program LAPLACE_2D
    real(kind=8) :: rhs(nmax+kmax)
 !
 ! Solution on grid
-   real(kind=8) :: u_grd(ngrd_max)
+   real(kind=8) :: u_grd(ngrd_max), umin, umax
 !
 !  Matrix equation variables for GMRES
 !  MAXL is the maximum nubmer of GMRES iterations performed
@@ -69,10 +69,13 @@ program LAPLACE_2D
    
 !
 ! Get solution on the grid
-   call GET_SOL_GRID(mu, A_log, i_grd, x_grd, y_grd, u_grd)
+   call GET_SOL_GRID(mu, A_log, i_grd, x_grd, y_grd, u_grd, umin, umax)
 !
 ! Check solution at target points
-   if (debug) call GET_SOL_TAR(ntar, z_tar, mu, A_log, u_tar)
+   if (debug) then
+      call GET_SOL_TAR(ntar, z_tar, mu, A_log, u_tar)
+      call CHECK_ERROR_GRID(i_grd, x_grd, y_grd, u_grd, umin, umax)
+   end if
 
 end program LAPLACE_2D
 
@@ -132,8 +135,8 @@ subroutine INITIALIZE(debug, dirichlet)
       
 !
 ! initialize grid size
-      nx = 200
-      ny = 200
+      nx = 10
+      ny = 10
       if (nx*ny > ngrd_max) then
          print *, 'Too many grid points!'
          print *, 'nx*ny = ', nx*ny
@@ -382,13 +385,13 @@ subroutine GET_SOL_TAR(ntar, z_tar, mu, A_log, u_tar)
 !!!         call PRIN2('   diff = *', u_ex-u_tar(itar), 1)
          
       end do
-      call PRIN2 (' MAX ERROR AT TARGET POINTS = *', err, 1)
+      call PRIN2 ('Max error at target points = *', err, 1)
 
 end subroutine GET_SOL_TAR
 
 !----------------------------------------------------------------------
 
-subroutine GET_SOL_GRID(mu, A_log, i_grd, x_grd, y_grd, u_grd)
+subroutine GET_SOL_GRID(mu, A_log, i_grd, x_grd, y_grd, u_grd, umin, umax)
 
 ! Calculate solution at grid points 
 ! Inputs:
@@ -398,6 +401,8 @@ subroutine GET_SOL_GRID(mu, A_log, i_grd, x_grd, y_grd, u_grd)
 !   x_grd, y_grd: grid points
 ! Returns:
 !   u_grd: solution
+!   umin: minimum solution value
+!   umax: maximum solution value
 
    use geometry_mod, only: k0, k, nd, nbk, pi, h, eye, z, dz, bounded, &
                            nx, ny, zk, ds_dth, REAL_GRID_DUMP
@@ -497,8 +502,8 @@ subroutine GET_SOL_GRID(mu, A_log, i_grd, x_grd, y_grd, u_grd)
          end do
       end do
       
-      call PRIN2(' Min solution on grid = *', umin, 1)
-      call PRIN2(' Max solution on grid = *', umax, 1)
+      call PRIN2('Min solution on grid = *', umin, 1)
+      call PRIN2('Max solution on grid = *', umax, 1)
 
       open(unit = 31, file = 'mat_plots/ugrid.m')
 
@@ -511,3 +516,42 @@ subroutine GET_SOL_GRID(mu, A_log, i_grd, x_grd, y_grd, u_grd)
       close(31)
          
 end subroutine GET_SOL_GRID
+
+!----------------------------------------------------------------------
+
+subroutine CHECK_ERROR_GRID(i_grd, x_grd, y_grd, u_grd, umin, umax)
+
+! Checks error in solution at grid points 
+! Inputs:
+!   i_grd(i,j): flags whether grid point in domain or not
+!   x_grd, y_grd: grid points
+!   u_grd: solution
+!   umin, umax: min and max of solution
+
+   use geometry_mod, only: nx, ny, bounded
+   implicit none
+   integer, intent(in) :: i_grd(nx,ny)
+   real(kind=8), intent(in) :: x_grd(nx, ny), y_grd(nx, ny), &
+                               u_grd(nx, ny), umin, umax
+!
+! local variables
+   integer :: i, j
+   real(kind=8) :: err, u_ex, u_inf, U_EXACT
+   complex(kind=8) :: z_grid
+
+      err = 0.d0
+      u_inf = max(dabs(umin), dabs(umax))
+      do i = 1, nx
+         do j = 1, ny
+            z_grid = dcmplx(x_grd(i, j), y_grd(i, j))
+            if (i_grd(i,j) .eq. 1) then  
+               u_ex = U_EXACT(bounded, z_grid)
+               err = max(err, dabs(u_ex - u_grd(i, j)))
+            end if
+         end do
+      end do
+      
+      call PRIN2 ('Max error on grid = *', err, 1)
+      call PRIN2 ('Max relative error on grid = *', err / u_inf, 1)
+         
+end subroutine CHECK_ERROR_GRID
