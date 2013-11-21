@@ -31,6 +31,7 @@ subroutine SOLVE (maxl, rhs, lrwork, liwork, dirichlet, soln, mu, A_log, &
    integer :: i, itol, isym, norder, ierr, iw, nelt, ia, ja, iter, itmax, &
               kbod
    real(kind=8) :: tol, a, err, sb, sx, rw
+   
 
 !
 !  parameters for DGMRES - see dgmres.f to see what they mean
@@ -78,7 +79,7 @@ subroutine SOLVE (maxl, rhs, lrwork, liwork, dirichlet, soln, mu, A_log, &
       do kbod = 1, k
          A_log(kbod) = soln(nbk + kbod)
       end do
-      call PRIN2(' mu = *', mu, nbk) 
+!      call PRIN2(' mu = *', mu, nbk) 
       call PRIN2(' A_log = *', A_log, k)
 
 end subroutine SOLVE
@@ -116,7 +117,6 @@ subroutine MATVEC (N, XX, YY, NELT, IA, JA, A, ISYM)
    real(kind=8) :: A_log(kmax)
 
       t0 = etime(timep)
-
       call FASMVP (N, xx, yy, A_log, source, dipvec, charge, &
                    dipstr, pot, grad, hess)
       

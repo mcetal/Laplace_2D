@@ -18,6 +18,9 @@ program LAPLACE_2D
 ! Right hand side to integral equation 
    real(kind=8) :: rhs(nmax+kmax)
 !
+! Solution on grid
+   real(kind=8) :: u_grd(ngrd_max)
+!
 !  Matrix equation variables for GMRES
 !  MAXL is the maximum nubmer of GMRES iterations performed
 !       before restarting.
@@ -41,13 +44,13 @@ program LAPLACE_2D
 !
 ! Initialize print output units
    call PRINI(6, 13)
-
+   
 !
 ! Initialize Geometry, problem type, and system size
    call INITIALIZE(debug, dirichlet)
    call INIT_HOLE_GEO() 
    call BUILD_DOMAIN()
-   call BUILD_GRID()
+   call BUILD_GRID(i_grd, x_grd, y_grd)
    
 !
 ! Get target points
@@ -56,13 +59,17 @@ program LAPLACE_2D
 !
 ! Set boundary conditions
    call GET_BCS(debug, dirichlet, rhs)   
-   call PRIN2(' rhs = *', rhs, nbk)
+!   call PRIN2(' rhs = *', rhs, nbk)
    
 !
 ! Solve integral equation
+   igwork(1) = maxl
    call SOLVE (maxl, rhs, lrwork, liwork, dirichlet, soln, mu, A_log, &
                gmwork, igwork)
-               
+   
+!
+! Get solution on the grid
+   call GET_SOL_GRID(mu, A_log, i_grd, x_grd, y_grd, u_grd)
 !
 ! Check solution at target points
    if (debug) call GET_SOL_TAR(ntar, z_tar, mu, A_log, u_tar)
@@ -131,6 +138,7 @@ subroutine INITIALIZE(debug, dirichlet)
          print *, 'Too many grid points!'
          print *, 'nx*ny = ', nx*ny
          print *, 'ngrd_max = ', ngrd_max
+         stop
       end if
 
 end subroutine INITIALIZE
@@ -171,7 +179,8 @@ subroutine GET_TARGETS(ntar, z_tar)
 ! Returns:
 !   z_tar: location of target points in complex plain
 !
-   use geometry_mod, only: pi, k0, k, zk, ak, bk, Z_PLOT
+   use geometry_mod, only: pi, k0, k, zk, ak, bk, Z_PLOT, xmin, xmax, &
+                           ymin, ymax
    implicit none
    integer, intent(in) :: ntar
    complex(kind=8), intent(out) :: z_tar(ntar)
@@ -179,25 +188,36 @@ subroutine GET_TARGETS(ntar, z_tar)
    integer :: i
    real(kind=8) :: dth, theta, a_tar, b_tar
    character(32) :: options
+   complex(kind=8) :: z_centre, z_corner
    
       dth = 2.d0*pi/ntar
+
+      if ( (k0==0) .and. (k==0) ) then
+         a_tar = 0.5d0*ak(1)
+         b_tar = 0.5d0*bk(1)
+         z_centre = zk(1)
+      elseif ( (k0==0) .and. (k==1) ) then
+         a_tar = 0.5d0*(ak(1) + ak(2))
+         b_tar = 0.5d0*(bk(1) + bk(2))
+         z_centre = zk(1)
+      elseif ( (k0==1) .and. (k==1) ) then
+         a_tar = 2.d0*max(ak(1), bk(1))
+         b_tar = a_tar
+         z_centre = zk(1)
+      elseif (k0 == 1) then
+         z_centre = 0.5d0*dcmplx(xmin + xmax, ymin + ymax)
+         z_corner = dcmplx(xmax, ymax)
+         a_tar = cdabs(z_corner - z_centre)
+         b_tar = a_tar   
+      else
+         print *, 'Cannot calculate target points for this geometry'
+         print *, 'Errors in solution check may result'
+      end if
       
       do i = 1, ntar
          theta = dth*(i-1.d0)
-         if ( (k0==0) .and. (k==0) ) then
-            a_tar = 0.5d0*ak(1)
-            b_tar = 0.5d0*bk(1)
-         elseif ( (k0==0) .and. (k==1) ) then
-            a_tar = 0.5d0*(ak(1) + ak(2))
-            b_tar = 0.5d0*(bk(1) + bk(2))
-         elseif ( (k0==1) .and. (k==1) ) then
-            a_tar = 2.d0*max(ak(1), bk(1))
-            b_tar = a_tar
-         else
-            print *, 'Cannot calculate target points for this geometry'
-            print *, 'Errors in solution check may result'
-         end if
-         z_tar(i) = zk(1) + dcmplx(a_tar*dcos(theta), b_tar*dsin(theta))
+         z_tar(i) = z_centre + dcmplx(a_tar*dcos(theta), &
+                                      b_tar*dsin(theta))
       end do
       
       call PRIN2(' z_tar = *', z_tar, 2*ntar)
@@ -365,3 +385,129 @@ subroutine GET_SOL_TAR(ntar, z_tar, mu, A_log, u_tar)
       call PRIN2 (' MAX ERROR AT TARGET POINTS = *', err, 1)
 
 end subroutine GET_SOL_TAR
+
+!----------------------------------------------------------------------
+
+subroutine GET_SOL_GRID(mu, A_log, i_grd, x_grd, y_grd, u_grd)
+
+! Calculate solution at grid points 
+! Inputs:
+!   mu: density of integral operator
+!   A_log: strength of log sources
+!   i_grd(i,j): flags whether grid point in domain or not
+!   x_grd, y_grd: grid points
+! Returns:
+!   u_grd: solution
+
+   use geometry_mod, only: k0, k, nd, nbk, pi, h, eye, z, dz, bounded, &
+                           nx, ny, zk, ds_dth, REAL_GRID_DUMP
+   implicit none
+   integer, intent(in) :: i_grd(nx,ny)
+   real(kind=8), intent(in) :: mu(nbk), A_log(k), x_grd(nx, ny), &
+                               y_grd(nx, ny)
+   real(kind=8), intent(out) :: u_grd(nx, ny)
+!
+! local variables
+   integer :: i, j, istart, kbod
+   real(kind=8) :: umin, umax
+   complex(kind=8) :: z_grid
+!
+! FMM work arrays
+   integer :: iprec, ifcharge, ifdipole, ifpot, ifgrad, ifhess, ntarget, &
+              ifpottarg, ifgradtarg, ifhesstarg, ier
+   real(kind=8) :: source(2,nbk), dipvec(2,nbk), target(2, nx*ny)
+   complex(kind=8) :: charge(nbk), dipstr(nbk), pot(nbk), grad(2,nbk), &
+                      hess(3,nbk), pottarg(nx*ny), gradtarg(2, nx*ny), &
+                      hesstarg(3, nx*ny)
+
+!
+!   Define grid target points
+      istart = 1
+      do i = 1, nx
+         do j = 1, ny
+            target(1, istart) = x_grd(i,j)
+            target(2, istart) = y_grd(i,j)
+            istart = istart + 1 
+         end do
+      end do
+      ntarget = istart - 1
+      
+!
+!   Assemble arrays for FMM call
+      do i = 1, nbk
+         source(1, i) = dreal(z(i))
+         source(2, i) = dimag(z(i))
+         dipvec(1,i) = dreal(-eye*dz(i))/ds_dth(i)
+         dipvec(2,i) = dimag(-eye*dz(i))/ds_dth(i)
+         charge(i) = 0.d0
+         dipstr(i) = h*mu(i)*ds_dth(i)/(2.d0*pi)
+      end do
+
+! set parameters for FMM routine DAPIF2
+	
+      iprec = 5   ! err < 10^-14
+      ifcharge = 0 ! no charges, only dipoles
+      ifdipole = 1
+      ifpot = 1
+      ifgrad = 0
+      ifhess = 0
+      ifpottarg = 1
+      ifgradtarg = 0
+      ifhesstarg = 0
+      
+! call FMM
+
+      call PRINI(0, 13)
+      call lfmm2dparttarg(ier, iprec, nbk, source, ifcharge, charge, &
+                          ifdipole, dipstr, dipvec, ifpot, pot, ifgrad,  &
+                          grad, ifhess, hess, ntarget, target, ifpottarg, &
+                          pottarg, ifgradtarg, gradtarg, ifhesstarg, hesstarg)
+      call PRINI(6, 13)
+      
+      if (ier.eq.4) then
+         print *, 'ERROR IN FMM: Cannot allocate tree workspace'
+         stop
+      else if(ier.eq.8) then
+         print *, 'ERROR IN FMM: Cannot allocate bulk FMM workspace'
+         stop
+      else if(ier.eq.16) then
+         print *, 'ERROR IN FMM: Cannot allocate multipole expansion workspace' 
+         stop
+      end if
+	  
+! unpack into grid
+      umax = -1.d10
+      umin = 1.d10
+      istart = 1
+      do i = 1, nx
+         do j = 1, ny
+            z_grid = dcmplx(x_grd(i, j), y_grd(i, j))
+            if (i_grd(i, j) .eq. 1) then  
+               u_grd(i, j) = dreal(pottarg(istart))
+               do kbod = 1, k
+                  u_grd(i, j) = u_grd(i, j) & 
+                    + A_log(kbod)*dlog(cdabs(z_grid - zk(kbod + 1 - k0)))
+               end do
+               umax = max(umax, u_grd(i, j))
+               umin = min(umin, u_grd(i, j))
+             else
+               u_grd(i, j) = -100.d0
+            end if
+            istart = istart + 1 
+         end do
+      end do
+      
+      call PRIN2(' Min solution on grid = *', umin, 1)
+      call PRIN2(' Max solution on grid = *', umax, 1)
+
+      open(unit = 31, file = 'mat_plots/ugrid.m')
+
+      write(31, *) 'ulim = ['
+      write(31, '(2(D15.6))') umin, umax
+      write(31, *) '];'
+
+      call REAL_GRID_DUMP(u_grd, 31)
+
+      close(31)
+         
+end subroutine GET_SOL_GRID

@@ -183,9 +183,9 @@ subroutine BUILD_DOMAIN()
             ymax = max(ymax, dimag(z(i)))
          end do   
          call Z_PLOT(z((kbod-k0)*nd+1), nd, options, 31)
-         call PRIN2('z = *', z((kbod-k0)*nd+1), 2*nd)
-         call PRIN2('dz = *', dz((kbod-k0)*nd+1), 2*nd)
-         call PRIN2('kappa = *', kappa((kbod-k0)*nd+1), nd)
+!         call PRIN2('z = *', z((kbod-k0)*nd+1), 2*nd)
+!         call PRIN2('dz = *', dz((kbod-k0)*nd+1), 2*nd)
+!         call PRIN2('kappa = *', kappa((kbod-k0)*nd+1), nd)
          istart = istart + nd  
       end do
       
@@ -216,7 +216,7 @@ end subroutine BUILD_DOMAIN
 
 !----------------------------------------------------------------------
 
-subroutine BUILD_GRID()
+subroutine BUILD_GRID(i_grd, x_grd, y_grd)
 !
 ! This subroutine embeds the domain into a rectangular grid. The coordinates
 ! of grid points are (x_grd(i,j), y_grd(i,j))
@@ -349,7 +349,7 @@ subroutine BUILD_GRID()
             istart = istart + 1 
          end do
       end do
-
+      
       open(unit = 31, file = 'mat_plots/igrid.m')
       open(unit = 32, file = 'mat_plots/xgrid.m')
       open(unit = 33, file = 'mat_plots/ygrid.m')
