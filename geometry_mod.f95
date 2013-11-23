@@ -1,5 +1,6 @@
 !
-! comman variables etc for laplace_2d, including matlab plotting routines
+! comman variables etc for 2-D integral equation solvers
+! routines to describe the boundary of the domain and the grid
 ! make sure a directory "mat_plots/" exists
 !
 module geometry_mod

@@ -9,6 +9,7 @@ program LAPLACE_2D
 !
 ! testing module
    use geometry_mod
+   use laplace_system_mod
 
    implicit none
 !
@@ -21,20 +22,12 @@ program LAPLACE_2D
 ! Solution on grid
    real(kind=8) :: u_grd(ngrd_max), umin, umax
 !
-!  Matrix equation variables for GMRES
-!  MAXL is the maximum nubmer of GMRES iterations performed
-!       before restarting.
-!  LRWORK is the dimension of a real workspace needed by DGMRES.
-!  LIWORK is the dimension of an integer workspace needed by DGMRES.
-!  GMWORK and IWORK are work arrays used by DGMRES
-!
-   integer, parameter :: maxl = 50, liwork=30,  & 
-                         lrwork=10+(nmax+kmax)*(maxl+6)+maxl*(maxl+3)
-   real(kind=8) :: gmwork(lrwork), soln(nmax+kmax)
-   integer :: igwork(liwork)
+! Matrix equation solution from GMRES
+   real(kind=8) :: soln(nmax+kmax)
+
 !
 ! Problem type
-   logical :: debug, dirichlet
+   logical :: debug
 !
 ! Target points
    integer, parameter :: ntar = 20
@@ -47,7 +40,7 @@ program LAPLACE_2D
    
 !
 ! Initialize Geometry, problem type, and system size
-   call INITIALIZE(debug, dirichlet)
+   call INITIALIZE(debug)
    call INIT_HOLE_GEO() 
    call BUILD_DOMAIN()
    call BUILD_GRID(i_grd, x_grd, y_grd)
@@ -58,14 +51,12 @@ program LAPLACE_2D
    
 !
 ! Set boundary conditions
-   call GET_BCS(debug, dirichlet, rhs)   
+   call GET_BCS(debug, rhs)   
 !   call PRIN2(' rhs = *', rhs, nbk)
    
 !
 ! Solve integral equation
-   igwork(1) = maxl
-   call SOLVE (maxl, rhs, lrwork, liwork, dirichlet, soln, mu, A_log, &
-               gmwork, igwork)
+   call SOLVE (rhs, soln, mu, A_log)
    
 !
 ! Get solution on the grid
@@ -81,7 +72,7 @@ end program LAPLACE_2D
 
 !----------------------------------------------------------------------
 
-subroutine INITIALIZE(debug, dirichlet)
+subroutine INITIALIZE(debug)
 !
 ! reads in k0, k, nd from module and calculates nbk
 ! describes problem type
@@ -91,8 +82,9 @@ subroutine INITIALIZE(debug, dirichlet)
 !   dirichlet :: true if Dirichlet BVP, false if Neumann
    use geometry_mod, only: pi, eye, kmax, npmax, nbk, k0, k, nd, h, &
                            bounded, nx, ny, ngrd_max
+   use laplace_system_mod, only: dirichlet
    implicit none
-   logical, intent(out) :: debug, dirichlet
+   logical, intent(out) :: debug
 
 !
 ! initialize constants
@@ -101,9 +93,9 @@ subroutine INITIALIZE(debug, dirichlet)
 
 !
 ! initialize number of holes and points per hole
-      k0 = 1
+      k0 = 0
       k = 2
-      nd = 1024
+      nd = 64
       bounded = k0==0
       print *, 'bounded = ', bounded
 !
@@ -135,8 +127,8 @@ subroutine INITIALIZE(debug, dirichlet)
       
 !
 ! initialize grid size
-      nx = 10
-      ny = 10
+      nx = 100
+      ny = 100
       if (nx*ny > ngrd_max) then
          print *, 'Too many grid points!'
          print *, 'nx*ny = ', nx*ny
@@ -159,15 +151,20 @@ subroutine INIT_HOLE_GEO()
    use geometry_mod, only: k0, k, ak, bk, ncyc, zk
    implicit none
    
-      ak(1) = 1.d0
-      bk(1) = 0.2d0
-      ncyc(1) = 3
-      zk(1) = dcmplx(-1.d0, -0.5d0)
+      ak(1) = 2.d0
+      bk(1) = 2.d0
+      ncyc(1) = 0
+      zk(1) = dcmplx(0.d0, 0.0d0)
       
       ak(2) = 0.5d0
-      bk(2) = 0.1d0
-      ncyc(2) = 4
-      zk(2) = dcmplx(1.d0,0.5d0)
+      bk(2) = 0.5d0
+      ncyc(2) = 0
+      zk(2) = dcmplx(-0.75d0, 0.0d0)
+
+      ak(3) = 0.3d0
+      bk(3) = 0.3d0
+      ncyc(3) = 0
+      zk(3) = dcmplx(0.75d0, 0.0d0)
       
 end subroutine INIT_HOLE_GEO
 
@@ -235,7 +232,7 @@ subroutine GET_TARGETS(ntar, z_tar)
 end subroutine GET_TARGETS
 !----------------------------------------------------------------------
 
-subroutine GET_BCS(debug, dirichlet, rhs)
+subroutine GET_BCS(debug, rhs)
 
 ! Constructs right hand side of integral equation
 ! Inputs:
@@ -245,8 +242,9 @@ subroutine GET_BCS(debug, dirichlet, rhs)
 !   rhs: right hand size of integral equation
 
    use geometry_mod, only: k0, k, nd, nbk, zk, z, bounded
+   use laplace_system_mod, only: dirichlet
    implicit none
-   logical, intent(in) :: debug, dirichlet
+   logical, intent(in) :: debug
    real(kind=8), intent(out) :: rhs(nbk+k)
    real(kind=8) :: U_EXACT
    integer :: i, kbod
@@ -324,14 +322,14 @@ real(kind=8) function U_EXACT(bounded, z)
       elseif (bounded) then
          U_EXACT = 0.d0
          do kbod = 1, k
-            U_EXACT = U_EXACT + 1.d0/(z-zk(kbod+1))
+            U_EXACT = U_EXACT + dreal(1.d0/(z-zk(kbod+1)))
          end do
       elseif (k == 1) then
          U_EXACT = (A*dcos(n*theta) + B*dsin(n*theta)) / r**n
       else
          U_EXACT = 0.d0
          do kbod = 1, k
-            U_EXACT = U_EXACT + 1.d0/(z-zk(kbod))
+            U_EXACT = U_EXACT + dreal(1.d0/(z-zk(kbod)))
          end do         
       end if
 

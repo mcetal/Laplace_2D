@@ -2,7 +2,7 @@
 !----------------------------------------------------------------------
 
 subroutine SOLVE (maxl, rhs, lrwork, liwork, dirichlet, soln, mu, A_log, &
-                  gmwork, igwork )
+                  gmwork, igwork, schur, ipvtbf, bnew)
 
 !
 ! Solves integral equation using GMRES
@@ -18,48 +18,72 @@ subroutine SOLVE (maxl, rhs, lrwork, liwork, dirichlet, soln, mu, A_log, &
 !   A_log: log sources
 !   gmwork: real workspace for GMRES
 !   igwork: integer workspace for GMRES
+!   schur: preconditioner Schur complement
+!   ipvtbf: pivots for precondition
+!   bnew: rhs for preconditioner
 
-   use geometry_mod, only: k0, k, nd, nbk, bounded
+   use geometry_mod, only: k0, k, kmax, nd, nbk, bounded
    implicit none
    integer, intent(in) :: maxl, lrwork, liwork
    real(kind=8), intent(in) :: rhs(nbk)
    logical, intent(in) :: dirichlet
-   integer, intent(out) :: igwork(liwork)
-   real(kind=8), intent(out) :: soln(*), mu(nbk), A_log(k), gmwork(lrwork)
-   external MATVEC, MSOLVE
+   integer, intent(out) :: igwork(liwork), ipvtbf(kmax)
+   real(kind=8), intent(out) :: soln(*), mu(nbk), A_log(k), gmwork(lrwork), &
+                                schur(kmax * kmax), bnew(kmax)
+
+! Local variables
+   external MATVEC_DIR, MSOLVE
    real(kind=4) t0, t1, tsec, timep(2), etime
    integer :: i, itol, isym, norder, ierr, iw, nelt, ia, ja, iter, itmax, &
               kbod
    real(kind=8) :: tol, a, err, sb, sx, rw
    
-
 !
 !  parameters for DGMRES - see dgmres.f to see what they mean
       itol = 0
       tol = 1.0d-12
       isym = 0
+
+!  Restart flag, will restart after iwork(1) iterations. This value 
+!  should be less than or equal to maxl
+      igwork(1) = maxl      
+
       do i = 2, liwork
          igwork(i) = 0
       end do
       norder = nbk + k
 
 !  Preconditioner flag 
-      igwork(4) = 0
-
-!  Restart flag, will restart after iwork(5) iterations. This value 
-!  should be less than or equal to maxl
-      igwork(5) = maxl      
+!  igwork(4) = 0 - no preconditioner
+!  igwork(4) < 0 - preconditioner on the left
+!  igwork(4) > 0 - preconditioner on the right
+      igwork(4) = -1
 
 !  provide initial guess soln
       do i = 1, norder
          soln(i) = rhs(i)
       end do
 
+!  factor preconditioner
+      if (igwork(4) < 0) then  
+         t0 = etime(timep)
+         if ((bounded) .and. (dirichlet)) then  
+            call SCHUR_FACTOR_DIR_BNDED(schur, bnew, ipvtbf)
+         end if
+         stop
+         t1 = etime(timep)
+         call PRIN2('Time in factoring preconditioner = *', t1 - t0, 1)
+      end if
+      
       t0 = etime(timep)
       call PRINI(0, 13)
-      call DGMRES(norder, rhs, soln, nelt, ia, ja, a, isym, MATVEC, &
-                  MSOLVE, itol, tol, itmax, iter, err,ierr, 6, sb, sx, &
-                  gmwork, lrwork, igwork, liwork, rw, iw)
+      
+      if (dirichlet) then   
+         call DGMRES(norder, rhs, soln, nelt, ia, ja, a, isym, MATVEC_DIR, &
+                     MSOLVE, itol, tol, itmax, iter, err,ierr, 6, sb, sx, &
+                     gmwork, lrwork, igwork, liwork, rw, iw)
+      end if
+      
       call PRINI(6, 13)
       call PRINF('# GMRES ITERATIONS = *',iter,1)
       if (ierr.gt.2) then
@@ -86,7 +110,7 @@ end subroutine SOLVE
 
 !----------------------------------------------------------------------
 
-subroutine MATVEC (N, XX, YY, NELT, IA, JA, A, ISYM)
+subroutine MATVEC_DIR(N, XX, YY, NELT, IA, JA, A, ISYM)
 
 !
 ! Required by DGMRES with this precise calling sequence.
@@ -117,15 +141,15 @@ subroutine MATVEC (N, XX, YY, NELT, IA, JA, A, ISYM)
    real(kind=8) :: A_log(kmax)
 
       t0 = etime(timep)
-      call FASMVP (N, xx, yy, A_log, source, dipvec, charge, &
-                   dipstr, pot, grad, hess)
+      call FASMVP_DIR(N, xx, yy, A_log, source, dipvec, charge, &
+                      dipstr, pot, grad, hess)
       
       t1 = etime(timep)
 
 !      WRITE(13,*) 'TIME IN SECONDS FOR MATVEC = ', t1 - t0
 !      WRITE(6,*) 'TIME IN SECONDS FOR MATVEC = ', t1 - t0
 
-end subroutine MATVEC
+end subroutine MATVEC_DIR
 
 !----------------------------------------------------------------------
 
@@ -142,8 +166,98 @@ end subroutine MSOLVE
 
 !----------------------------------------------------------------------
 
-subroutine FASMVP(n, u, w, A_log, source, dipvec, charge, dipstr,  &
-                  pot, grad, hess)
+subroutine SCHUR_FACTOR_DIR_BNDED(schur, wb, ipvtbf)
+
+! Constructs and factors the Schur complement of the preconditioner 
+! matrix for the Dirichlet BVP in bounded domains
+! The discrete system takes the form Mx = b where
+!     
+!           M = |Mp | C |   Mp is N x N (N = total # bdry points)
+!               |---|---|   C is N x k, R is k x N and L is k x k.
+!               | R | L |
+!     Mp is of the form I + Q where Q is an integral operator 
+!     with continuous kernel. A good preconditioner, therefore,
+!     is
+!     
+!           B = | I | C |   I is N x N (N = total # bdry points)
+!               |---|---|   C is N x k, R is k x N and L is k x k.
+!               | R | L |
+!
+!     The vector U is ordered as 1) dipole densities 2) coeffs Ak.
+!
+! Returns: 
+!   Schur: contains the LU factors of the Schur complement
+!   ipvtbf: contains pivoting information from LINPACK
+!   wb: this is a work array for DGECO
+
+   use geometry_mod, only: k0, k, kmax, nd, nbk, z, zk, ds_dth
+   implicit none
+   integer, intent(out) :: ipvtbf(k)
+   real(kind=8) :: schur(k, k), wb(k)
+
+! local variables
+   integer :: ibod, kbod, i, istart, info, iwork(k)
+   real(kind=8) :: sum1, rcond, anorm, work(4*k)
+   character*1 :: norm
+   
+      print *, '** In Preconditioner factoring routine  **'
+
+      istart = nd
+      do ibod = 1, k
+         do kbod = 1, k
+            sum1 = 0.d0
+            do i = 1, nd
+               sum1 = sum1 &
+                      + dlog(cdabs(z(istart+i) - zk(kbod + 1 - k0)))
+            end do
+            schur(ibod, kbod) = sum1
+         end do
+         istart = istart + nd
+      end do
+
+      call DGETRF(k, k, schur, k, ipvtbf, info) 
+      if (info < 0) then
+         call PRINF(' DGETRF ERROR: illegal value in argument *', info, 1)
+         stop
+      else if (info > 0) then
+         call PRINF(' DGETRF ERROR: matrix is singular, *', info, 1)
+         stop
+      end if
+      
+! Compute the column sum for 1 norm
+      anorm = 0.d0
+      do kbod = 1, k
+         sum1 = 0.d0
+         do ibod = 1, k
+	    sum1 = sum1 + dabs(schur(ibod, kbod))
+	 end do
+	 anorm = max(anorm, sum1)
+      end do
+      call PRIN2(' 1 Norm of Schur complement = *', anorm, 1)
+      
+! estimate condition number of schur complement
+      norm = '1'
+      call DGECON(norm, k, schur, k, anorm, rcond, work, iwork, info) 
+      if (info < 0) then
+         call PRINF(' DGECON ERROR: illegal value in argument *', info, 1)
+         stop
+      end if
+      call prin2(' Condition number of Schur Complement = *', 1.d0/rcond, 1)
+
+!!!      print *, '   After factorization'
+!!!      do kbod = 1, k
+!!!	 call prinf(' column *', kbod, 1)
+!!!	 call prin2(' SCHUR = *',schur(1,kbod), k)
+!!!      end do
+!!!      call PRINf(' ipvtbf = *', ipvtbf, k)
+!!!      call PRIN2(' wb = *', wb, k)
+
+end subroutine SCHUR_FACTOR_DIR_BNDED
+
+!----------------------------------------------------------------------
+
+subroutine FASMVP_DIR(n, u, w, A_log, source, dipvec, charge, dipstr,  &
+                      pot, grad, hess)
 
 !
 ! Calculates the matrix vector product
@@ -255,4 +369,4 @@ subroutine FASMVP(n, u, w, A_log, source, dipvec, charge, dipstr,  &
          end do
       end if 
 
-end subroutine FASMVP
+end subroutine FASMVP_DIR
