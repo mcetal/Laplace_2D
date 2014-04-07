@@ -43,6 +43,7 @@ program LAPLACE_2D
    call INITIALIZE(debug)
    call INIT_HOLE_GEO() 
    call BUILD_DOMAIN()
+   call BAD_DOMAIN_BNDRY()
    call BUILD_GRID(i_grd, x_grd, y_grd)
    
 !
@@ -95,7 +96,7 @@ subroutine INITIALIZE(debug)
 ! initialize number of holes and points per hole
       k0 = 0
       k = 2
-      nd = 64
+      nd = 120
       bounded = k0==0
       print *, 'bounded = ', bounded
 !

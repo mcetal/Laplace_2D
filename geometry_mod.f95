@@ -35,6 +35,12 @@ module geometry_mod
    real(kind=8) :: x(nmax), y(nmax), ds_dth(nmax), kappa(nmax), &
                    theta(nmax)
    complex(kind=8) :: z(nmax), dz(nmax)
+   
+!
+! Boundary of "bad" part of domain - i.e. region close enough to boundary that
+! trapezoid rule breaks down
+   real(kind=8) :: x_bad(nmax), y_bad(nmax), ds_bad(nmax)
+   complex(kind=8) :: z_bad(nmax), dz_bad(nmax)   
 !
 ! Grid variables
    integer :: nx, ny, i_grd(ngrd_max)
@@ -215,6 +221,66 @@ subroutine BUILD_DOMAIN()
 
 end subroutine BUILD_DOMAIN
 
+   
+!----------------------------------------------------------------------
+
+subroutine BAD_DOMAIN_BNDRY()
+!
+! For each contour, define a curve which dilineates where it is safe to use
+! the trapezoid rule to evaluate the layer potentials within the domain. 
+! Reference: 
+! Alex Barnett, EVALUATION OF LAYER POTENTIALS CLOSE TO THE BOUNDARY FOR LAPLACE AND 
+! HELMHOLTZ PROBLEMS ON ANALYTIC PLANAR DOMAINS
+! SIAM J. Sci. Stat. Comput. 2012
+! This subroutine defines the curve Gamma_alpha in this paper
+!
+! local variables
+   implicit none
+   integer :: i, kbod, istart, kmode
+   real(kind=8) alpha_bad
+   character(32) :: options
+   
+!
+! FFT work arrays
+   real(kind=8) wsave(4*nd + 15)
+   complex(kind=8) :: zf(nd)
+   
+!
+! open unit for matlab plotting
+      open(unit = 31, file = 'mat_plots/geo_bad_contours.m')
+      options = '''r'',''LineWidth'',1'
+
+      call DCFFTI (nd, wsave)
+      
+      alpha_bad = 5.d0*h
+      call PRIN2 (' alpha_bad = *', alpha_bad, 1)
+      istart = 0
+      do kbod = k0, k
+         do i = 1, nd
+            zf(i) = z(istart+i)
+         end do
+         call DCFFTF (nd, zf, wsave)
+         zf(1) = zf(1)/nd
+         do kmode = 1, nd/2 - 1
+            if (kbod.eq.0) then 
+               zf(kmode+1) = zf(kmode+1)*dexp(-kmode*alpha_bad)/nd
+               zf(nd-kmode+1) = zf(kmode+1)*dexp(kmode*alpha_bad)/nd
+             else
+               zf(kmode+1) = zf(kmode+1)*dexp(kmode*alpha_bad)/nd
+               zf(nd-kmode+1) = zf(kmode+1)*dexp(-kmode*alpha_bad)/nd
+            end if
+            zf(nd/2+1) = 0.d0
+         end do
+         call DCFFTB (nd, zf, wsave)
+         do i = 1, nd
+            z_bad(istart+i) = zf(i)
+         end do
+         call Z_PLOT(z_bad(istart+1), nd, options, 31)
+         istart = istart + nd
+      end do
+
+end subroutine BAD_DOMAIN_BNDRY
+
 !----------------------------------------------------------------------
 
 subroutine BUILD_GRID(i_grd, x_grd, y_grd)
@@ -306,7 +372,7 @@ subroutine BUILD_GRID(i_grd, x_grd, y_grd)
          dipstr(i) = h*1.d0*ds_dth(i)/(2.d0*pi)
       end do
 
-! set parameters for FMM routine DAPIF2
+! set parameters for FMM routine 
 	
       iprec = 5   ! err < 10^-14
       ifcharge = 0 ! no charges, only dipoles
