@@ -1,13 +1,13 @@
 close all
 clear
 
-xgrid
+xgrid;
 xg = a;
-ygrid
+ygrid;
 yg = a;
-igrid
+igrid;
 ig = a;
-ugrid
+ugrid;
 ug = a;
 
 figure(1)
