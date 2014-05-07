@@ -92,10 +92,10 @@ subroutine SOLVE (rhs, soln, mu, A_log)
       end if
       
       t0 = etime(timep)
-      call PRINI(6, 13)
+      call PRINI(0, 13)
       
       if (dirichlet) then   
-         call DGMRES(norder, rhs, soln, nelt, ia, ja, a, isym, MATVEC_DEBUG, &
+         call DGMRES(norder, rhs, soln, nelt, ia, ja, a, isym, MATVEC, &
                      MSOLVE, itol, tol, itmax, iter, err,ierr, &
                      6, sb, sx, gmwork, lrwork, igwork, liwork, rw, iw)
       end if
@@ -120,7 +120,7 @@ subroutine SOLVE (rhs, soln, mu, A_log)
       do kbod = 1, k
          A_log(kbod) = soln(nbk + kbod)
       end do
-!      call PRIN2(' mu = *', mu, nbk) 
+ !!!     call PRIN2(' mu = *', mu, nbk) 
       call PRIN2('A_log = *', A_log, k)
 
 end subroutine SOLVE
@@ -387,7 +387,7 @@ subroutine FASMVP_DIR(n, u, w, A_log, source, dipvec, charge, dipstr,  &
       do i = 1, nbk
          self = 0.25d0*h*kappa(i)*ds_dth(i)/pi
          cauchy = self*u(i) + dreal(pot(i))
-         call prin2(' cauchy = *', cauchy, 1)
+ !        call prin2(' cauchy = *', cauchy, 1)
          w(i) = 0.5d0*u(i) + cauchy + far_field
          
 !      add on log sources

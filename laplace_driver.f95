@@ -43,8 +43,8 @@ program LAPLACE_2D
    call INITIALIZE(debug)
    call INIT_HOLE_GEO() 
    call BUILD_DOMAIN()
-   !call BAD_DOMAIN_BNDRY()
-   !call BUILD_GRID(i_grd, x_grd, y_grd)
+   call BAD_DOMAIN_BNDRY()
+   call BUILD_GRID(i_grd, x_grd, y_grd)
    
 !
 ! Get target points
@@ -61,12 +61,12 @@ program LAPLACE_2D
    
 !
 ! Get solution on the grid
-   !call GET_SOL_GRID(mu, A_log, i_grd, x_grd, y_grd, u_grd, umin, umax)
+   call GET_SOL_GRID(mu, A_log, i_grd, x_grd, y_grd, u_grd, umin, umax)
 !
 ! Check solution at target points
    if (debug) then
       call GET_SOL_TAR(ntar, z_tar, mu, A_log, u_tar)
-   !   call CHECK_ERROR_GRID(i_grd, x_grd, y_grd, u_grd, umin, umax)
+      call CHECK_ERROR_GRID(i_grd, x_grd, y_grd, u_grd, umin, umax)
    end if
 
 end program LAPLACE_2D
@@ -381,10 +381,10 @@ subroutine GET_SOL_TAR(ntar, z_tar, mu, A_log, u_tar)
          
          u_ex = U_EXACT(bounded, z_tar(itar))
          err = max(err,dabs(u_ex-u_tar(itar)))
-         call PRINF('itar = *', itar, 1)
-         call PRIN2('   u_exact = *', u_ex, 1)
-         call PRIN2('   u_tar = *', u_tar(itar), 1)
-         call PRIN2('   diff = *', u_ex-u_tar(itar), 1)
+      !!!   call PRINF('itar = *', itar, 1)
+      !!!   call PRIN2('   u_exact = *', u_ex, 1)
+      !!!   call PRIN2('   u_tar = *', u_tar(itar), 1)
+      !!!   call PRIN2('   diff = *', u_ex-u_tar(itar), 1)
          
       end do
       call PRIN2 ('Max error at target points = *', err, 1)
