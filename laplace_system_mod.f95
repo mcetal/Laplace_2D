@@ -74,7 +74,7 @@ subroutine SOLVE (rhs, soln, mu, A_log)
 !  igwork(4) = 0 - no preconditioner
 !  igwork(4) < 0 - preconditioner on the left (the only option here!)
 !  igwork(4) > 0 - preconditioner on the right
-      igwork(4) = -1
+      igwork(4) = 0
 
 !  provide initial guess soln
       do i = 1, norder

@@ -310,7 +310,7 @@ subroutine BUILD_GRID(i_grd, x_grd, y_grd)
 !
 ! local variables
    integer :: i, j, istart, jstart, kbod, ix, iy, ipot, i_tmp(nx,ny)
-   real(kind=8) :: hx, hy, eps, ds_max, xleft, xright, ybot, ytop, x, y
+   real(kind=8) :: hx, hy, eps, ds_max, xleft, xright, ybot, ytop, x, y, tol
 
 !
 ! FMM work arrays
@@ -358,10 +358,11 @@ subroutine BUILD_GRID(i_grd, x_grd, y_grd)
       ifhesstarg = 0
 
 !
-!   Determine which grid points are in region where it's safe to use trapezoid
-!   rule      
+!   Determine first, the regions which are inside the domain but 
+!   "close" to a contour
 !
       istart = 0
+      tol = 0.4d0
       do kbod = k0, k
 !   Assemble arrays for FMM call
          do i = 1, nd
@@ -408,17 +409,72 @@ subroutine BUILD_GRID(i_grd, x_grd, y_grd)
          do i = 1, nx
             do j = 1, ny
                ipot = DNINT(dreal(pottarg(jstart)))
-               if (ipot.eq.1) then
+               if ((dabs(dreal(pottarg(jstart))-1.d0) .lt. tol) .and. &
+                   (kbod.eq.0)) then
                   i_grd(i,j) = 1
-               elseif ((ipot.eq.2).or.(ipot.eq.-2)) then
-         !         i_grd(i,j) = i_grd(i,j) + ipot
-               elseif (ipot.eq.-1) then
+               elseif ((dabs(dreal(pottarg(jstart))+1.d0).lt.tol) .and. &
+                       (kbod .ge. 1)) then
                   i_grd(i,j) = -kbod
                end if
                jstart = jstart + 1 
             end do
          end do
          istart = istart + nd
+      end do
+      open(unit = 31, file = 'mat_plots/igrid_c.m')
+
+      call INT_GRID_DUMP(i_grd, 31)
+
+      close(31)
+      
+! now see which points are well inside the domain, where it is safe to use 
+! the trapezoid rule
+
+      istart = 0
+      do kbod = k0, k
+!   Assemble arrays for FMM call
+         do i = 1, nd
+            source(1,istart+i) = dreal(z(istart+i))
+            source(2,istart+i) = dimag(z(istart+i))
+            dipvec(1,istart+i) = dreal(-eye*dz(istart+i))/ds_dth(istart+i)
+            dipvec(2,istart+i) = dimag(-eye*dz(istart+i))/ds_dth(istart+i)
+            charge(istart+i) = 0.d0
+            dipstr(istart+i) = h*1.d0*ds_dth(istart+i)/(2.d0*pi)
+         end do
+         istart = istart + nd
+      end do
+      
+! call FMM
+
+      call PRINI(0, 13)
+      call lfmm2dparttarg(ier, iprec, nbk, source, ifcharge, charge, &
+                          ifdipole, dipstr, dipvec, ifpot, pot, ifgrad,  &
+                          grad, ifhess, hess, ntarget, target, ifpottarg, &
+                          pottarg, ifgradtarg, gradtarg, ifhesstarg, hesstarg)
+      call PRINI(6, 13)
+	
+      if (ier.eq.4) then
+         print *, 'ERROR IN FMM: Cannot allocate tree workspace'
+         stop
+      else if(ier.eq.8) then
+         print *, 'ERROR IN FMM: Cannot allocate bulk FMM workspace'
+         stop
+      else if(ier.eq.16) then
+         print *, 'ERROR IN FMM: Cannot allocate multipole expansion workspace' 
+         stop
+      end if
+      
+! unpack into grid
+      jstart = 1
+      tol = 0.4d0
+      do i = 1, nx
+         do j = 1, ny
+            if ((dabs(dreal(pottarg(jstart))-1.d0) .lt. tol).and. &
+                (i_grd(i,j) .eq. 0) )then
+               i_grd(i,j) = 2
+            end if
+            jstart = jstart + 1 
+         end do
       end do
       
       open(unit = 31, file = 'mat_plots/igrid.m')

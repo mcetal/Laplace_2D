@@ -7,12 +7,17 @@ ygrid;
 yg = a;
 igrid;
 ig = a;
+igrid_c;
+igc = a;
 ugrid;
 ug = a;
 
 figure(1)
 mesh(xg,yg,ig)
+hold on
 
+figure(4)
+mesh(xg,yg,igc)
 
 figure(2)
 geo_contours
