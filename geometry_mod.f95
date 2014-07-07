@@ -35,6 +35,12 @@ module geometry_mod
    real(kind=8) :: x(nmax), y(nmax), ds_dth(nmax), kappa(nmax), &
                    theta(nmax)
    complex(kind=8) :: z(nmax), dz(nmax)
+   
+!
+! Boundary of "bad" part of domain - i.e. region close enough to boundary that
+! trapezoid rule breaks down
+   real(kind=8) :: x_bad(nmax), y_bad(nmax), ds_bad(nmax)
+   complex(kind=8) :: z_bad(nmax), dz_bad(nmax)   
 !
 ! Grid variables
    integer :: nx, ny, i_grd(ngrd_max)
@@ -215,9 +221,281 @@ subroutine BUILD_DOMAIN()
 
 end subroutine BUILD_DOMAIN
 
+   
+!----------------------------------------------------------------------
+
+subroutine BAD_DOMAIN_BNDRY()
+!
+! For each contour, define a curve which dilineates where it is safe to use
+! the trapezoid rule to evaluate the layer potentials within the domain. 
+! Reference: 
+! Alex Barnett, EVALUATION OF LAYER POTENTIALS CLOSE TO THE BOUNDARY FOR LAPLACE AND 
+! HELMHOLTZ PROBLEMS ON ANALYTIC PLANAR DOMAINS
+! SIAM J. Sci. Stat. Comput. 2012
+! This subroutine defines the curve Gamma_alpha in this paper
+!
+! Input
+!    z:  boundary of domain
+! Output
+!    z_bad:  Gamma_alpha for each contour
+!    dz_bad:  d Gamma_alpha
+!
+! local variables
+   implicit none
+   integer :: i, kbod, istart, kmode
+   real(kind=8) alpha_bad
+   character(32) :: options
+   
+!
+! FFT work arrays
+   real(kind=8) wsave(4*nd + 15)
+   complex(kind=8) :: zf(nd)
+   
+!
+! open unit for matlab plotting
+      open(unit = 31, file = 'mat_plots/geo_bad_contours.m')
+      options = '''r'',''LineWidth'',1'
+
+      call DCFFTI (nd, wsave)
+      
+      alpha_bad = 5.d0*h
+      call PRIN2 (' alpha_bad = *', alpha_bad, 1)
+      istart = 0
+      do kbod = k0, k
+         do i = 1, nd
+            zf(i) = z(istart+i)
+         end do
+         call DCFFTF (nd, zf, wsave)
+         zf(1) = zf(1)/nd
+         do kmode = 1, nd/2 - 1
+            if (kbod.eq.0) then 
+               zf(kmode+1) = zf(kmode+1)*dexp(-kmode*alpha_bad)/nd
+               zf(nd-kmode+1) = zf(kmode+1)*dexp(kmode*alpha_bad)/nd
+             else
+               zf(kmode+1) = zf(kmode+1)*dexp(kmode*alpha_bad)/nd
+               zf(nd-kmode+1) = zf(kmode+1)*dexp(-kmode*alpha_bad)/nd
+            end if
+            zf(nd/2+1) = 0.d0
+         end do
+         call DCFFTB (nd, zf, wsave)
+         do i = 1, nd
+            z_bad(istart+i) = zf(i)
+         end do
+         call FDIFFF(z_bad(istart+1), dz_bad(istart+1), nd, wsave)
+         do i = 1, nd
+            ds_bad(istart+i) = cdabs(dz_bad(istart+i))
+            if (kbod.ne.0) then
+               dz_bad(istart+i) = -dz_bad(istart+i)
+            end if
+         end do
+         call Z_PLOT(z_bad(istart+1), nd, options, 31)
+         istart = istart + nd
+      end do
+      close(31)
+
+end subroutine BAD_DOMAIN_BNDRY
+
 !----------------------------------------------------------------------
 
 subroutine BUILD_GRID(i_grd, x_grd, y_grd)
+!
+! This subroutine embeds the domain into a rectangular grid. The coordinates
+! of grid points are (x_grd(i,j), y_grd(i,j))
+! i_grd(i,j) = 1 if the point is inside the domain
+!            = 0 if the point is outside the domain
+!
+   implicit none
+   integer :: i_grd(nx,ny)
+   real(kind=8) :: x_grd(nx,ny), y_grd(nx,ny)
+!
+! local variables
+   integer :: i, j, istart, jstart, kbod, ix, iy, ipot, i_tmp(nx,ny)
+   real(kind=8) :: hx, hy, eps, ds_max, xleft, xright, ybot, ytop, x, y, tol
+
+!
+! FMM work arrays
+   integer :: iprec, ifcharge, ifdipole, ifpot, ifgrad, ifhess, ntarget, &
+              ifpottarg, ifgradtarg, ifhesstarg, ier
+   real(kind=8) :: source(2,2*nbk), dipvec(2,2*nbk), target(2,nx*ny)
+   complex(kind=8) :: charge(2*nbk), dipstr(2*nbk), pot(2*nbk), grad(2,2*nbk), &
+                      hess(3,2*nbk), pottarg(nx*ny), gradtarg(2,nx*ny), &
+                      hesstarg(3, nx*ny)
+   
+      hx = (xmax - xmin)/dfloat(nx - 1)
+      hy = (ymax - ymin)/dfloat(ny - 1)
+      call PRIN2(' hx in BUILD_GRID = *', hx, 1)
+      call PRIN2(' hy in BUILD_GRID = *', hy, 1)
+   
+!
+!   Define x and y coordinates of grid
+      istart = 1
+      do i = 1, nx
+         x = xmin + (i - 1.d0) * hx
+         do j = 1, ny
+            y = ymin + (j - 1.d0) * hy
+            x_grd(i, j) = x
+            y_grd(i, j) = y
+            target(1, istart) = x
+            target(2, istart) = y
+            istart = istart + 1 
+         end do
+      end do
+      ntarget = istart - 1
+      
+      i_grd = 0
+      i_tmp = 0
+            
+! set parameters for FMM routine 
+	
+      iprec = 5   ! err < 10^-14
+      ifcharge = 0 ! no charges, only dipoles
+      ifdipole = 1
+      ifpot = 1
+      ifgrad = 0
+      ifhess = 0
+      ifpottarg = 1
+      ifgradtarg = 0
+      ifhesstarg = 0
+
+!
+!   Determine first, the regions which are inside the domain but 
+!   "close" to a contour
+!
+      istart = 0
+      tol = 0.4d0
+      do kbod = k0, k
+!   Assemble arrays for FMM call
+         do i = 1, nd
+            source(1, i) = dreal(z(istart+i))
+            source(2, i) = dimag(z(istart+i))
+            dipvec(1,i) = dreal(-eye*dz(istart+i))/ds_dth(istart+i)
+            dipvec(2,i) = dimag(-eye*dz(istart+i))/ds_dth(istart+i)
+            charge(i) = 0.d0
+            dipstr(i) = h*1.d0*ds_dth(istart+i)/(2.d0*pi)
+
+!
+!   bad geometry curve
+            source(1, i+nd) = dreal(z_bad(istart+i))
+            source(2, i+nd) = dimag(z_bad(istart+i))
+            dipvec(1,i+nd) = dreal(-eye*dz_bad(istart+i))/ds_bad(istart+i)
+            dipvec(2,i+nd) = dimag(-eye*dz_bad(istart+i))/ds_bad(istart+i)
+            charge(i+nd) = 0.d0
+            dipstr(i+nd) = h*1.d0*ds_bad(istart+i)/(2.d0*pi)
+         end do
+
+      
+! call FMM
+
+         call PRINI(0, 13)
+         call lfmm2dparttarg(ier, iprec, 2*nd, source, ifcharge, charge, &
+                          ifdipole, dipstr, dipvec, ifpot, pot, ifgrad,  &
+                          grad, ifhess, hess, ntarget, target, ifpottarg, &
+                          pottarg, ifgradtarg, gradtarg, ifhesstarg, hesstarg)
+         call PRINI(6, 13)
+	
+         if (ier.eq.4) then
+            print *, 'ERROR IN FMM: Cannot allocate tree workspace'
+            stop
+         else if(ier.eq.8) then
+            print *, 'ERROR IN FMM: Cannot allocate bulk FMM workspace'
+            stop
+         else if(ier.eq.16) then
+            print *, 'ERROR IN FMM: Cannot allocate multipole expansion workspace' 
+            stop
+         end if
+	  
+! unpack into grid
+         jstart = 1
+         do i = 1, nx
+            do j = 1, ny
+               ipot = DNINT(dreal(pottarg(jstart)))
+               if ((dabs(dreal(pottarg(jstart))-1.d0) .lt. tol) .and. &
+                   (kbod.eq.0)) then
+                  i_grd(i,j) = 1
+               elseif ((dabs(dreal(pottarg(jstart))+1.d0).lt.tol) .and. &
+                       (kbod .ge. 1)) then
+                  i_grd(i,j) = -kbod
+               end if
+               jstart = jstart + 1 
+            end do
+         end do
+         istart = istart + nd
+      end do
+      open(unit = 31, file = 'mat_plots/igrid_c.m')
+
+      call INT_GRID_DUMP(i_grd, 31)
+
+      close(31)
+      
+! now see which points are well inside the domain, where it is safe to use 
+! the trapezoid rule
+
+      istart = 0
+      do kbod = k0, k
+!   Assemble arrays for FMM call
+         do i = 1, nd
+            source(1,istart+i) = dreal(z(istart+i))
+            source(2,istart+i) = dimag(z(istart+i))
+            dipvec(1,istart+i) = dreal(-eye*dz(istart+i))/ds_dth(istart+i)
+            dipvec(2,istart+i) = dimag(-eye*dz(istart+i))/ds_dth(istart+i)
+            charge(istart+i) = 0.d0
+            dipstr(istart+i) = h*1.d0*ds_dth(istart+i)/(2.d0*pi)
+         end do
+         istart = istart + nd
+      end do
+      
+! call FMM
+
+      call PRINI(0, 13)
+      call lfmm2dparttarg(ier, iprec, nbk, source, ifcharge, charge, &
+                          ifdipole, dipstr, dipvec, ifpot, pot, ifgrad,  &
+                          grad, ifhess, hess, ntarget, target, ifpottarg, &
+                          pottarg, ifgradtarg, gradtarg, ifhesstarg, hesstarg)
+      call PRINI(6, 13)
+	
+      if (ier.eq.4) then
+         print *, 'ERROR IN FMM: Cannot allocate tree workspace'
+         stop
+      else if(ier.eq.8) then
+         print *, 'ERROR IN FMM: Cannot allocate bulk FMM workspace'
+         stop
+      else if(ier.eq.16) then
+         print *, 'ERROR IN FMM: Cannot allocate multipole expansion workspace' 
+         stop
+      end if
+      
+! unpack into grid
+      jstart = 1
+      tol = 0.4d0
+      do i = 1, nx
+         do j = 1, ny
+            if ((dabs(dreal(pottarg(jstart))-1.d0) .lt. tol).and. &
+                (i_grd(i,j) .eq. 0) )then
+               i_grd(i,j) = 2
+            end if
+            jstart = jstart + 1 
+         end do
+      end do
+      
+      open(unit = 31, file = 'mat_plots/igrid.m')
+      open(unit = 32, file = 'mat_plots/xgrid.m')
+      open(unit = 33, file = 'mat_plots/ygrid.m')
+
+      call INT_GRID_DUMP(i_grd, 31)
+      call REAL_GRID_DUMP(x_grd, 32)
+      call REAL_GRID_DUMP(y_grd, 33)
+
+      close(31)
+      close(32)
+      close(33)
+ 
+      print *, 'SUCCESSFULLY BUILT GRID'
+      
+end subroutine BUILD_GRID
+
+!----------------------------------------------------------------------
+
+subroutine BUILD_GRID_OLD(i_grd, x_grd, y_grd)
 !
 ! This subroutine embeds the domain into a rectangular grid. The coordinates
 ! of grid points are (x_grd(i,j), y_grd(i,j))
@@ -306,7 +584,7 @@ subroutine BUILD_GRID(i_grd, x_grd, y_grd)
          dipstr(i) = h*1.d0*ds_dth(i)/(2.d0*pi)
       end do
 
-! set parameters for FMM routine DAPIF2
+! set parameters for FMM routine 
 	
       iprec = 5   ! err < 10^-14
       ifcharge = 0 ! no charges, only dipoles
@@ -364,7 +642,7 @@ subroutine BUILD_GRID(i_grd, x_grd, y_grd)
       close(33)
  
    
-end subroutine BUILD_GRID
+end subroutine BUILD_GRID_OLD
 
 !------------------
 ! PLOTTING ROUTINES

@@ -1,18 +1,23 @@
 close all
 clear
 
-xgrid
+xgrid;
 xg = a;
-ygrid
+ygrid;
 yg = a;
-igrid
+igrid;
 ig = a;
-ugrid
+igrid_c;
+igc = a;
+ugrid;
 ug = a;
 
 figure(1)
 mesh(xg,yg,ig)
+hold on
 
+figure(4)
+mesh(xg,yg,igc)
 
 figure(2)
 geo_contours

@@ -74,7 +74,7 @@ subroutine SOLVE (rhs, soln, mu, A_log)
 !  igwork(4) = 0 - no preconditioner
 !  igwork(4) < 0 - preconditioner on the left (the only option here!)
 !  igwork(4) > 0 - preconditioner on the right
-      igwork(4) = -1
+      igwork(4) = 0
 
 !  provide initial guess soln
       do i = 1, norder
@@ -120,7 +120,7 @@ subroutine SOLVE (rhs, soln, mu, A_log)
       do kbod = 1, k
          A_log(kbod) = soln(nbk + kbod)
       end do
-!      call PRIN2(' mu = *', mu, nbk) 
+ !!!     call PRIN2(' mu = *', mu, nbk) 
       call PRIN2('A_log = *', A_log, k)
 
 end subroutine SOLVE
@@ -387,6 +387,7 @@ subroutine FASMVP_DIR(n, u, w, A_log, source, dipvec, charge, dipstr,  &
       do i = 1, nbk
          self = 0.25d0*h*kappa(i)*ds_dth(i)/pi
          cauchy = self*u(i) + dreal(pot(i))
+!        call prin2(' cauchy = *', cauchy, 1)
          w(i) = 0.5d0*u(i) + cauchy + far_field
          
 !      add on log sources

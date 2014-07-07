@@ -4,6 +4,8 @@ fort.13
 makefile*
 laplace
 laplace_2d
-mat_plots/*grid.m
+mat_plots/*grid*.m
 mat_plots/geo_contours.m
+mat_plots/geo_bad_contours.m
 mat_plots/target_points.m
+mat_plots/*~

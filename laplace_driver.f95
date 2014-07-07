@@ -43,6 +43,7 @@ program LAPLACE_2D
    call INITIALIZE(debug)
    call INIT_HOLE_GEO() 
    call BUILD_DOMAIN()
+   call BAD_DOMAIN_BNDRY()
    call BUILD_GRID(i_grd, x_grd, y_grd)
    
 !
@@ -386,10 +387,10 @@ subroutine GET_SOL_TAR(ntar, z_tar, mu, A_log, u_tar)
          
          u_ex = U_EXACT(bounded, z_tar(itar))
          err = max(err,dabs(u_ex-u_tar(itar)))
-!!!         call PRINF('itar = *', itar, 1)
-!!!         call PRIN2('   u_exact = *', u_ex, 1)
-!!!         call PRIN2('   u_tar = *', u_tar(itar), 1)
-!!!         call PRIN2('   diff = *', u_ex-u_tar(itar), 1)
+      !!!   call PRINF('itar = *', itar, 1)
+      !!!   call PRIN2('   u_exact = *', u_ex, 1)
+      !!!   call PRIN2('   u_tar = *', u_tar(itar), 1)
+      !!!   call PRIN2('   diff = *', u_ex-u_tar(itar), 1)
          
       end do
       call PRIN2 ('Max error at target points = *', err, 1)
@@ -437,12 +438,15 @@ subroutine GET_SOL_GRID(mu, A_log, i_grd, x_grd, y_grd, u_grd, umin, umax)
       istart = 1
       do i = 1, nx
          do j = 1, ny
-            target(1, istart) = x_grd(i,j)
-            target(2, istart) = y_grd(i,j)
-            istart = istart + 1 
+            if (i_grd(i,j) .eq. 2) then   
+               target(1, istart) = x_grd(i,j)
+               target(2, istart) = y_grd(i,j)
+               istart = istart + 1 
+            end if
          end do
       end do
       ntarget = istart - 1
+      call PRINF (' Number of active points in grid = *', ntarget, 1)
       
 !
 !   Assemble arrays for FMM call
@@ -494,7 +498,7 @@ subroutine GET_SOL_GRID(mu, A_log, i_grd, x_grd, y_grd, u_grd, umin, umax)
       do i = 1, nx
          do j = 1, ny
             z_grid = dcmplx(x_grd(i, j), y_grd(i, j))
-            if (i_grd(i, j) .eq. 1) then  
+            if (i_grd(i, j) .eq. 2) then  
                u_grd(i, j) = dreal(pottarg(istart))
                do kbod = 1, k
                   u_grd(i, j) = u_grd(i, j) & 
@@ -502,10 +506,10 @@ subroutine GET_SOL_GRID(mu, A_log, i_grd, x_grd, y_grd, u_grd, umin, umax)
                end do
                umax = max(umax, u_grd(i, j))
                umin = min(umin, u_grd(i, j))
+               istart = istart + 1 
              else
                u_grd(i, j) = -100.d0
             end if
-            istart = istart + 1 
          end do
       end do
       
@@ -551,9 +555,11 @@ subroutine CHECK_ERROR_GRID(i_grd, x_grd, y_grd, u_grd, umin, umax)
       do i = 1, nx
          do j = 1, ny
             z_grid = dcmplx(x_grd(i, j), y_grd(i, j))
-            if (i_grd(i,j) .eq. 1) then  
+            if (i_grd(i,j) .eq. 2) then  
                u_ex = U_EXACT(bounded, z_grid)
                err = max(err, dabs(u_ex - u_grd(i, j)))
+         !      call PRIN2 ('u_ex = *', u_ex, 1)
+         !      call PRIN2 ('  u_grd = *', u_grd(i,j), 1)
             end if
          end do
       end do
