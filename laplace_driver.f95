@@ -162,8 +162,8 @@ subroutine INIT_HOLE_GEO()
       ncyc(2) = 0
       zk(2) = dcmplx(-0.75d0, 0.0d0)
 
-      ak(3) = 0.2d0
-      bk(3) = 0.3d0
+      ak(3) = 0.1d0
+      bk(3) = 0.2d0
       ncyc(3) = 0
       zk(3) = dcmplx(0.75d0, 0.0d0)
       

@@ -270,10 +270,10 @@ subroutine BAD_DOMAIN_BNDRY()
          do kmode = 1, nd/2 - 1
             if (kbod.eq.0) then 
                zf(kmode+1) = zf(kmode+1)*dexp(-kmode*alpha_bad)/nd
-               zf(nd-kmode+1) = zf(kmode+1)*dexp(kmode*alpha_bad)/nd
+               zf(nd-kmode+1) = zf(nd-kmode+1)*dexp(kmode*alpha_bad)/nd
              else
                zf(kmode+1) = zf(kmode+1)*dexp(kmode*alpha_bad)/nd
-               zf(nd-kmode+1) = zf(kmode+1)*dexp(-kmode*alpha_bad)/nd
+               zf(nd-kmode+1) = zf(nd-kmode+1)*dexp(-kmode*alpha_bad)/nd
             end if
             zf(nd/2+1) = 0.d0
          end do
