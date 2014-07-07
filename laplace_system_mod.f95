@@ -92,10 +92,10 @@ subroutine SOLVE (rhs, soln, mu, A_log)
       end if
       
       t0 = etime(timep)
-      call PRINI(6, 13)
+      call PRINI(0, 13)
       
       if (dirichlet) then   
-         call DGMRES(norder, rhs, soln, nelt, ia, ja, a, isym, MATVEC_DEBUG, &
+         call DGMRES(norder, rhs, soln, nelt, ia, ja, a, isym, MATVEC, &
                      MSOLVE, itol, tol, itmax, iter, err,ierr, &
                      6, sb, sx, gmwork, lrwork, igwork, liwork, rw, iw)
       end if
@@ -387,7 +387,6 @@ subroutine FASMVP_DIR(n, u, w, A_log, source, dipvec, charge, dipstr,  &
       do i = 1, nbk
          self = 0.25d0*h*kappa(i)*ds_dth(i)/pi
          cauchy = self*u(i) + dreal(pot(i))
-         call prin2(' cauchy = *', cauchy, 1)
          w(i) = 0.5d0*u(i) + cauchy + far_field
          
 !      add on log sources
@@ -472,9 +471,10 @@ end subroutine MATVEC
 subroutine FASMVP_DIR_DEBUG(n, u, w, A_log)
 
 !
-! Calculates the matrix vector product
+! Calculates the matrix vector product for debugger testing
 !     u is the current guess for the density
-!     w is (0.5I + K) u + sum A_log 
+!     w is 0.5I u + sum A_log
+! GMRES should only take no more than 2 iterations if debugger is in play 
 ! 
 !
    use geometry_mod
