@@ -61,7 +61,7 @@ program LAPLACE_2D
    
 !
 ! Get solution on the grid
-   call BUILD_BARNETT(mu, cm)
+!   call BUILD_BARNETT(mu, cm)
    call GET_SOL_GRID(mu, A_log, i_grd, x_grd, y_grd, u_grd, umin, umax)
 !
 ! Check solution at target points
@@ -97,7 +97,7 @@ subroutine INITIALIZE(debug)
 ! initialize number of holes and points per hole
       k0 = 0
       k = 3
-      nd = 1024
+      nd = 256
       bounded = k0==0
       print *, 'bounded = ', bounded
 !
@@ -442,7 +442,7 @@ subroutine GET_SOL_GRID(mu, A_log, i_grd, x_grd, y_grd, u_grd, umin, umax)
       istart = 1
       do i = 1, nx
          do j = 1, ny
-            if (i_grd(i,j) .ne. 0) then   
+            if (i_grd(i,j) .eq. 2) then   
                target(1, istart) = x_grd(i,j)
                target(2, istart) = y_grd(i,j)
                istart = istart + 1 
@@ -520,7 +520,7 @@ subroutine GET_SOL_GRID(mu, A_log, i_grd, x_grd, y_grd, u_grd, umin, umax)
 !
 ! For points close to a boundary curve, use Barnett's corrections
 
-      call RESAMPLE_DOMAIN ()
+!!!      call RESAMPLE_DOMAIN ()
 !!!      do kbod = k0, k
 !!!      call PRINF('kbod = *', kbod, 1)
 !!!      do indx = ic_pnt(kbod-k0+1), ic_pnt(kbod-k0+2) - 1
@@ -575,7 +575,7 @@ subroutine CHECK_ERROR_GRID(i_grd, x_grd, y_grd, u_grd, umin, umax)
       do i = 1, nx
          do j = 1, ny
             z_grid = dcmplx(x_grd(i, j), y_grd(i, j))
-            if (i_grd(i,j) .ne. 0) then  
+            if (i_grd(i,j) .eq. 2) then  
                u_ex = U_EXACT(bounded, z_grid)
                err = max(err, dabs(u_ex - u_grd(i, j)))
          !      call PRIN2 ('u_ex = *', u_ex, 1)
