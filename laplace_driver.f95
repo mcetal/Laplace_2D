@@ -96,8 +96,8 @@ subroutine INITIALIZE(debug)
 !
 ! initialize number of holes and points per hole
       k0 = 0
-      k = 2
-      nd = 120
+      k = 3
+      nd = 1024
       bounded = k0==0
       print *, 'bounded = ', bounded
 !
@@ -129,8 +129,8 @@ subroutine INITIALIZE(debug)
       
 !
 ! initialize grid size
-      nx = 100
-      ny = 100
+      nx = 200
+      ny = 200
       if (nx*ny > ngrd_max) then
          print *, 'Too many grid points!'
          print *, 'nx*ny = ', nx*ny
@@ -154,19 +154,24 @@ subroutine INIT_HOLE_GEO()
    implicit none
    
       ak(1) = 2.d0
-      bk(1) = 2.d0
+      bk(1) = 1.8d0
       ncyc(1) = 0
       zk(1) = dcmplx(0.d0, 0.0d0)
       
       ak(2) = 0.5d0
-      bk(2) = 0.5d0
+      bk(2) = 0.3d0
       ncyc(2) = 0
       zk(2) = dcmplx(-0.75d0, 0.0d0)
 
-      ak(3) = 0.3d0
-      bk(3) = 0.3d0
+      ak(3) = 0.1d0
+      bk(3) = 0.2d0
       ncyc(3) = 0
       zk(3) = dcmplx(0.75d0, 0.0d0)
+      
+      ak(4) = 0.1d0
+      bk(4) = 0.05d0
+      ncyc(4) = 0
+      zk(4) = dcmplx(0.0d0, 0.75d0)
       
 end subroutine INIT_HOLE_GEO
 
@@ -212,11 +217,12 @@ subroutine GET_TARGETS(ntar, z_tar)
          a_tar = cdabs(z_corner - z_centre)
          b_tar = a_tar   
       else
-         print *, 'Cannot calculate target points for this geometry'
+         print *, 'Cannot guarantee target points for this geometry'
+         print *, 'They must be user supplied in routine GET_TARGETS'
          print *, 'Errors in solution check may result'
-         z_centre = dcmplx(0,-1.d0)
-         a_tar = 0.05d0
-         b_tar = 0.05d0
+         z_centre = zk(1)
+         a_tar = 0.8 * ak(1)
+         b_tar = 0.8 * bk(1)
       end if
       
       do i = 1, ntar
