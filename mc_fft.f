@@ -1510,3 +1510,65 @@ c
 c
       return                
       end
+c
+c
+c------------------
+      subroutine FINTERC (FCORSE, FFINE, NCORSE, NFINE, WORK)
+C
+C     Fourier interpolation subroutine for periodic complex function.
+C
+C     INPUT:
+C
+C     fcorse   = array of function values on coarse grid
+C     ncorse = number of coarse grid points
+c     nfine = number of fine grid points
+C     work     = workspace of length at least
+C                4*ncorse + 6*nfine + 100
+C     nfine    = number of fine grid points, with
+C                (nfine+1) an integral multiple of (ncorse+1)
+C
+C     OUTPUT:
+C
+C     ffine = array of function values on fine grid with
+C             nfine points. The zero entry positions of
+C             the two arrays are chosen to coincide
+C
+      IMPLICIT REAL *8 (A-H,O-Z)
+      INTEGER *4 NCORSE,NFINE,LW,IPT,IP2
+      COMPLEX *16 FCORSE(NCORSE), FFINE(NFINE), 
+     1            WORK(3*NCORSE+3*NFINE + 20)
+C
+      NC = NCORSE
+      NF = NFINE
+c
+c  pointers to work array
+      izc = 0
+      izf = izc + NC
+      iwc = izf + NF
+      iwf = iwc + 2*NC + 10
+      work = 0.d0
+c
+c---- complexify FCORSE data
+      do i = 1, NC
+	 work(izc+i) = fcorse(i)
+      end do
+c
+      call DCFFTI (NC, work(iwc+1))
+      call DCFFTF (NC, work(izc+1), work(iwc+1))
+ 
+      work(izf+1) = work(izc+1)/NC
+      DO I = 1,NC/2-1
+	 work(izf+1+i) = work(izc+1+i)/NC
+	 work(izf+1+NF-i) = work(izc+1+NC-i)/NC
+      end do
+      work(izf+NF/2+1) = 0.d0
+c
+      call DCFFTI (NF, work(iwf+1))
+      call DCFFTB (NF, WORK(izf+1), WORK(iwf+1))
+      DO i = 1, NF
+	 FFINE(I) = WORK(izf+i)
+      end do
+c
+      RETURN
+      END
+

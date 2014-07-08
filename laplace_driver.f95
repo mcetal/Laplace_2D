@@ -61,6 +61,7 @@ program LAPLACE_2D
    
 !
 ! Get solution on the grid
+   call BUILD_BARNETT(mu, cm)
    call GET_SOL_GRID(mu, A_log, i_grd, x_grd, y_grd, u_grd, umin, umax)
 !
 ! Check solution at target points
@@ -407,7 +408,10 @@ subroutine GET_SOL_GRID(mu, A_log, i_grd, x_grd, y_grd, u_grd, umin, umax)
 !   umax: maximum solution value
 
    use geometry_mod, only: k0, k, nd, nbk, pi, h, eye, z, dz, bounded, &
-                           nx, ny, zk, ds_dth, REAL_GRID_DUMP
+                           nx, ny, zk, ds_dth, REAL_GRID_DUMP, &
+                           z_res, dz_res, ibeta, RESAMPLE_DOMAIN, &
+                           n_close, i_close, j_close, ic_pnt 
+
    implicit none
    integer, intent(in) :: i_grd(nx,ny)
    real(kind=8), intent(in) :: mu(nbk), A_log(k), x_grd(nx, ny), &
@@ -416,7 +420,7 @@ subroutine GET_SOL_GRID(mu, A_log, i_grd, x_grd, y_grd, u_grd, umin, umax)
 !
 ! local variables
    integer :: i, j, istart, kbod
-   real(kind=8) :: umin, umax
+   real(kind=8) :: umin, umax, mu_res(ibeta*nbk)
    complex(kind=8) :: z_grid
 !
 ! FMM work arrays
@@ -432,7 +436,7 @@ subroutine GET_SOL_GRID(mu, A_log, i_grd, x_grd, y_grd, u_grd, umin, umax)
       istart = 1
       do i = 1, nx
          do j = 1, ny
-            if (i_grd(i,j) .eq. 2) then   
+            if (i_grd(i,j) .ne. 0) then   
                target(1, istart) = x_grd(i,j)
                target(2, istart) = y_grd(i,j)
                istart = istart + 1 
@@ -485,7 +489,7 @@ subroutine GET_SOL_GRID(mu, A_log, i_grd, x_grd, y_grd, u_grd, umin, umax)
          stop
       end if
 	  
-! unpack into grid
+! For points far enough from boundary, unpack into grid
       umax = -1.d10
       umin = 1.d10
       istart = 1
@@ -506,6 +510,22 @@ subroutine GET_SOL_GRID(mu, A_log, i_grd, x_grd, y_grd, u_grd, umin, umax)
             end if
          end do
       end do
+      
+!
+! For points close to a boundary curve, use Barnett's corrections
+
+      call RESAMPLE_DOMAIN ()
+!!!      do kbod = k0, k
+!!!      call PRINF('kbod = *', kbod, 1)
+!!!      do indx = ic_pnt(kbod-k0+1), ic_pnt(kbod-k0+2) - 1
+!!!         i = i_close(indx)
+!!!         j = j_close(indx)
+!!!         call PRINF('indx = *', indx, 1)
+!!!         call PRINF(' i = *', i, 1)
+!!!         call PRINF(' j = *', j, 1)
+!!!         call PRINF('i_grd = *', i_grd(i,j), 1)
+!!!      end do
+!!!   end do
       
       call PRIN2('Min solution on grid = *', umin, 1)
       call PRIN2('Max solution on grid = *', umax, 1)
@@ -549,7 +569,7 @@ subroutine CHECK_ERROR_GRID(i_grd, x_grd, y_grd, u_grd, umin, umax)
       do i = 1, nx
          do j = 1, ny
             z_grid = dcmplx(x_grd(i, j), y_grd(i, j))
-            if (i_grd(i,j) .eq. 2) then  
+            if (i_grd(i,j) .ne. 0) then  
                u_ex = U_EXACT(bounded, z_grid)
                err = max(err, dabs(u_ex - u_grd(i, j)))
          !      call PRIN2 ('u_ex = *', u_ex, 1)

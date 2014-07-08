@@ -9,7 +9,7 @@ module geometry_mod
    
    save
 
-   integer, parameter :: kmax = 10, npmax = 2048, nmax = kmax*npmax
+   integer, parameter :: kmax = 10, npmax = 2050, nmax = kmax*npmax
    integer, parameter :: nx_max = 500, ny_max = 500, ngrd_max = nx_max*ny_max
 !
 ! Number of holes, system size
@@ -40,7 +40,17 @@ module geometry_mod
 ! Boundary of "bad" part of domain - i.e. region close enough to boundary that
 ! trapezoid rule breaks down
    real(kind=8) :: x_bad(nmax), y_bad(nmax), ds_bad(nmax)
-   complex(kind=8) :: z_bad(nmax), dz_bad(nmax)   
+   complex(kind=8) :: z_bad(nmax), dz_bad(nmax), z0_box(nmax/5)
+!
+! Pointer arrays to points in grid that are in "close" region, and which 
+! contour they are close to
+   integer :: n_close(kmax), i_close(ngrd_max), j_close(ngrd_max), &
+              ic_pnt(kmax+1) 
+!
+! resampled domain variables
+   integer, parameter :: ibeta = 4
+   real(kind=8) :: x_res(ibeta*nmax), y_res(ibeta*nmax), ds_res(ibeta*nmax)
+   complex(kind=8) :: z_res(ibeta*nmax), dz_res(ibeta*nmax)
 !
 ! Grid variables
    integer :: nx, ny, i_grd(ngrd_max)
@@ -239,12 +249,14 @@ subroutine BAD_DOMAIN_BNDRY()
 ! Output
 !    z_bad:  Gamma_alpha for each contour
 !    dz_bad:  d Gamma_alpha
+!    z0_bad: centres for boxes 
 !
 ! local variables
    implicit none
-   integer :: i, kbod, istart, kmode
+   integer :: i, ibox, kbod, istart, istartb, kmode
    real(kind=8) alpha_bad
-   character(32) :: options
+   complex(kind=8) theta
+   character(32) :: options, optionsb
    
 !
 ! FFT work arrays
@@ -255,25 +267,47 @@ subroutine BAD_DOMAIN_BNDRY()
 ! open unit for matlab plotting
       open(unit = 31, file = 'mat_plots/geo_bad_contours.m')
       options = '''r'',''LineWidth'',1'
+      open(unit = 32, file = 'mat_plots/geo_bad_box.m')
+      optionsb = '''r*'',''LineWidth'',1'
 
       call DCFFTI (nd, wsave)
       
       alpha_bad = 5.d0*h
       call PRIN2 (' alpha_bad = *', alpha_bad, 1)
       istart = 0
+      istartb = 0
       do kbod = k0, k
          do i = 1, nd
             zf(i) = z(istart+i)
          end do
          call DCFFTF (nd, zf, wsave)
+!
+! first use these Fourier coefficients to calculate the box centres
+         do ibox = 1, nd/5
+            if (kbod .eq. 0) then 
+               theta = ibox*alpha_bad + 0.5d0*eye*alpha_bad
+             else
+               theta = ibox*alpha_bad - 0.5d0*eye*alpha_bad
+            end if
+            z0_box(ibox) = zf(1)/nd
+            do kmode = 1, nd/2 - 1
+               z0_box(ibox) = z0_box(ibox) &
+                                + zf(kmode+1)*cdexp(eye*kmode*theta)/nd
+               z0_box(ibox) = z0_box(ibox) &
+                                + zf(nd-kmode+1)*cdexp(-eye*kmode*theta)/nd
+            end do
+            call Z_PLOT(z0_box(ibox), 1, optionsb, 32)
+         end do
+!
+! now use the Fourier coefficients to calculate the contours of the bad region
          zf(1) = zf(1)/nd
          do kmode = 1, nd/2 - 1
             if (kbod.eq.0) then 
                zf(kmode+1) = zf(kmode+1)*dexp(-kmode*alpha_bad)/nd
-               zf(nd-kmode+1) = zf(kmode+1)*dexp(kmode*alpha_bad)/nd
+               zf(nd-kmode+1) = zf(nd-kmode+1)*dexp(kmode*alpha_bad)/nd
              else
                zf(kmode+1) = zf(kmode+1)*dexp(kmode*alpha_bad)/nd
-               zf(nd-kmode+1) = zf(kmode+1)*dexp(-kmode*alpha_bad)/nd
+               zf(nd-kmode+1) = zf(nd-kmode+1)*dexp(-kmode*alpha_bad)/nd
             end if
             zf(nd/2+1) = 0.d0
          end do
@@ -290,10 +324,47 @@ subroutine BAD_DOMAIN_BNDRY()
          end do
          call Z_PLOT(z_bad(istart+1), nd, options, 31)
          istart = istart + nd
+         istartb = istartb + nd/5
       end do
       close(31)
+      close(32)
 
 end subroutine BAD_DOMAIN_BNDRY
+
+!----------------------------------------------------------------------
+
+subroutine RESAMPLE_DOMAIN ()
+!
+! Resample the boundary points to ibeta*nd points per curve
+!
+! Input
+!    z:  boundary of domain
+!   dz:
+! Output
+!    z_res:  
+!
+! local variables
+   implicit none
+   integer :: i, kbod, istart, istartr
+   complex(kind=8) :: work(3*nd+3*ibeta*nd+20)
+   character(32) :: options
+!
+! open unit for matlab plotting
+      open(unit = 31, file = 'mat_plots/geo_resample.m')
+      options = '''g'',''LineWidth'',1'
+   
+      istart = 0
+      istartr = 0
+      do kbod = k0, k
+         call FINTERC (z(istart+1), z_res(istartr+1), nd, ibeta*nd, work)
+         call FINTERC (dz(istart+1), dz_res(istartr+1), nd, ibeta*nd, work)
+         call Z_PLOT(z_res(istartr+1), nd*ibeta, options, 31)
+         istart = istart + nd
+         istartr = istartr + ibeta*nd
+      end do
+      close(31)
+         
+end subroutine RESAMPLE_DOMAIN
 
 !----------------------------------------------------------------------
 
@@ -363,6 +434,7 @@ subroutine BUILD_GRID(i_grd, x_grd, y_grd)
 !
       istart = 0
       tol = 0.4d0
+      n_close = 0.   ! used to count how many points close to each contour
       do kbod = k0, k
 !   Assemble arrays for FMM call
          do i = 1, nd
@@ -412,9 +484,11 @@ subroutine BUILD_GRID(i_grd, x_grd, y_grd)
                if ((dabs(dreal(pottarg(jstart))-1.d0) .lt. tol) .and. &
                    (kbod.eq.0)) then
                   i_grd(i,j) = 1
+                  n_close(1) = n_close(1) + 1
                elseif ((dabs(dreal(pottarg(jstart))+1.d0).lt.tol) .and. &
                        (kbod .ge. 1)) then
                   i_grd(i,j) = -kbod
+                  n_close(kbod-k0+1) = n_close(kbod-k0+1) + 1
                end if
                jstart = jstart + 1 
             end do
@@ -422,7 +496,7 @@ subroutine BUILD_GRID(i_grd, x_grd, y_grd)
          istart = istart + nd
       end do
       open(unit = 31, file = 'mat_plots/igrid_c.m')
-
+      call PRINF ('n_close = *', n_close, k-k0+1)
       call INT_GRID_DUMP(i_grd, 31)
 
       close(31)
@@ -477,6 +551,8 @@ subroutine BUILD_GRID(i_grd, x_grd, y_grd)
          end do
       end do
       
+      call ORGANIZE_CLOSE_POINTS (i_grd)
+      
       open(unit = 31, file = 'mat_plots/igrid.m')
       open(unit = 32, file = 'mat_plots/xgrid.m')
       open(unit = 33, file = 'mat_plots/ygrid.m')
@@ -492,6 +568,58 @@ subroutine BUILD_GRID(i_grd, x_grd, y_grd)
       print *, 'SUCCESSFULLY BUILT GRID'
       
 end subroutine BUILD_GRID
+
+!----------------------------------------------------------------------
+
+subroutine ORGANIZE_CLOSE_POINTS (i_grd)
+!
+! This subroutine constructs the arrays i_close and j_close
+   implicit none
+   integer :: i_grd(nx,ny)
+!
+! local variables
+   integer :: i, j, k_count(kmax), kbod, indx
+   
+   k_count = 0
+   
+   ic_pnt(1) = 1
+   do kbod = k0+1, k+1
+      ic_pnt(kbod-k0+1) = ic_pnt(kbod-k0) + n_close(kbod-k0)
+   end do
+!!!   call PRINF ('pointer for close points = *', ic_pnt, k-k0+1)
+   
+   do i = 1, nx
+      do j = 1, ny
+         if ((i_grd(i,j) .ne. 0) .and. (i_grd(i,j) .ne. 2)) then
+            if (i_grd(i,j) .eq. 1) then
+               kbod = 0
+               indx = ic_pnt(1) + k_count(1)
+               k_count(1) = k_count(1) + 1
+             else
+               kbod = -i_grd(i,j)
+               indx = ic_pnt(kbod-k0+1) + k_count(kbod-k0+1)
+               k_count(kbod-k0+1) = k_count(kbod-k0+1) + 1
+            end if
+            i_close(indx) = i
+            j_close(indx) = j
+         end if 
+      end do
+   end do
+   
+!!!   do kbod = k0, k
+!!!      call PRINF('kbod = *', kbod, 1)
+!!!      do indx = ic_pnt(kbod-k0+1), ic_pnt(kbod-k0+2) - 1
+!!!         i = i_close(indx)
+!!!         j = j_close(indx)
+!!!         call PRINF('indx = *', indx, 1)
+!!!         call PRINF(' i = *', i, 1)
+!!!         call PRINF(' j = *', j, 1)
+!!!         call PRINF('i_grd = *', i_grd(i,j), 1)
+!!!      end do
+!!!   end do
+   
+end subroutine ORGANIZE_CLOSE_POINTS
+
 
 !----------------------------------------------------------------------
 

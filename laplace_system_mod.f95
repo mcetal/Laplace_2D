@@ -1,6 +1,6 @@
 module laplace_system_mod
 
-   use geometry_mod, only: nmax, kmax
+   use geometry_mod, only: nmax, kmax	
    
    implicit none
 
@@ -25,6 +25,10 @@ module laplace_system_mod
    integer :: ipvtbf(kmax)
    real(kind=8) :: schur(kmax*kmax), wb(kmax)
    
+! Stuff for Barnett's close evaluation of layer potentials 
+   integer, parameter :: p = 10  
+   real(kind=8) :: cm(p*nmax/5)
+   
 ! 
 !   external MSOLVE, MATVEC_DIR
 
@@ -46,7 +50,7 @@ subroutine SOLVE (rhs, soln, mu, A_log)
 
    use geometry_mod, only: k0, k, kmax, nd, nbk, bounded
    implicit none
-   real(kind=8), intent(in) :: rhs(nbk)
+   real(kind=8), intent(in) :: rhs(nbk+k)
    real(kind=8), intent(out) :: soln(*), mu(nbk), A_log(k)
 
 ! Local variables
@@ -74,7 +78,7 @@ subroutine SOLVE (rhs, soln, mu, A_log)
 !  igwork(4) = 0 - no preconditioner
 !  igwork(4) < 0 - preconditioner on the left (the only option here!)
 !  igwork(4) > 0 - preconditioner on the right
-      igwork(4) = 0
+      igwork(4) = -1
 
 !  provide initial guess soln
       do i = 1, norder
@@ -256,8 +260,8 @@ subroutine SCHUR_APPLY_DIR_BNDED(u, w, schur, ipvtbf)
    use geometry_mod, only: k0, k, kmax, nd, nbk, z, zk, ds_dth
    implicit none
    integer, intent(in) :: ipvtbf(k)
-   real(kind=8), intent(in) :: schur(k, k), u(nbk)
-   real(kind=8), intent(out) :: w(nbk)
+   real(kind=8), intent(in) :: schur(k, k), u(nbk+k)
+   real(kind=8), intent(out) :: w(nbk+k)
    
 ! Local variables
    integer :: istart, i, kbod, nbod, info
@@ -589,5 +593,34 @@ subroutine MATVEC_DEBUG(N, XX, YY, NELT, IA, JA, A, ISYM)
 !      WRITE(6,*) 'TIME IN SECONDS FOR MATVEC = ', t1 - t0
 
 end subroutine MATVEC_DEBUG
+
+!----------------------------------------------------------------------
+
+subroutine BUILD_BARNETT (mu, cm)
+   use geometry_mod, only: k0, k, nd, nbk, z_res, dz_res, ibeta
+   implicit none
+   real(kind=8), intent(in) :: mu(nbk)
+   real(kind=8), intent(out) :: cm(k0:k,nd/5,p)
+!
+! local variables
+   integer :: kbod, istart, istartr, nb
+   real(kind=8) :: mu_res(ibeta*nd)
+   complex(kind=8) :: zmu(nd), zmu_res(ibeta*nd), work(3*nd+3*ibeta*nd+20)
+!
+! calculate surrogate expansions
+      nb = nd/5
+      istart = 0
+      istartr = 0
+      do kbod = k0, k
+         zmu = mu(istart+1:istart+nd)
+         call PRIN2 ('zmu = *', zmu, 2*nd)
+         call FINTERC (zmu, zmu_res, nd, ibeta*nd, work)
+         mu_res = zmu_res
+         call PRIN2 ('mu_res = *', mu_res, nd*ibeta)
+         istart = istart + nd
+         istartr = istartr + ibeta*nd
+      end do
+   
+end subroutine BUILD_BARNETT
 
 end module laplace_system_mod
