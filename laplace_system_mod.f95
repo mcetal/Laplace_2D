@@ -360,7 +360,7 @@ subroutine FASMVP_DIR(n, u, w, A_log, source, dipvec, charge, dipstr,  &
          far_field = far_field/(2.d0*pi)
       end if 
          
-! set parameters for FMM routine DAPIF2
+! set parameters for FMM routine 
 	
       iprec = 5   ! err < 10^-14
       nsource = nbk

@@ -44,6 +44,7 @@ program LAPLACE_2D
    call INIT_HOLE_GEO() 
    call BUILD_DOMAIN()
    call BAD_DOMAIN_BNDRY()
+   call BUILD_CLOSEEVAL_GRID()
    call BUILD_GRID(i_grd, x_grd, y_grd)
    
 !
@@ -83,7 +84,7 @@ subroutine INITIALIZE(debug)
 !   bounded :: true if bounded domain, false if unbounded
 !   dirichlet :: true if Dirichlet BVP, false if Neumann
    use geometry_mod, only: pi, eye, kmax, npmax, nbk, k0, k, nd, h, &
-                           bounded, nx, ny, ngrd_max
+                           bounded, nx, ny, ngrd_max, nr, ntheta
    use laplace_system_mod, only: dirichlet
    implicit none
    logical, intent(out) :: debug
@@ -137,7 +138,9 @@ subroutine INITIALIZE(debug)
          print *, 'ngrd_max = ', ngrd_max
          stop
       end if
-
+! initialize close evaluation grid
+	  nr = 5
+	  ntheta = 5
 end subroutine INITIALIZE
 
 !----------------------------------------------------------------------

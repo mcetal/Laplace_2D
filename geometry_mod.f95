@@ -53,8 +53,9 @@ module geometry_mod
    complex(kind=8) :: z_res(ibeta*nmax), dz_res(ibeta*nmax)
 !
 ! Grid variables
-   integer :: nx, ny, i_grd(ngrd_max)
+   integer :: nx, ny, i_grd(ngrd_max), nr, ntheta
    real(kind=8) :: x_grd(ngrd_max), y_grd(ngrd_max)
+   real(kind=8) :: xbad_grd(ngrd_max), ybad_grd(ngrd_max)
       
 contains
    
@@ -234,6 +235,7 @@ end subroutine BUILD_DOMAIN
    
 !----------------------------------------------------------------------
 
+
 subroutine BAD_DOMAIN_BNDRY()
 !
 ! For each contour, define a curve which dilineates where it is safe to use
@@ -249,7 +251,7 @@ subroutine BAD_DOMAIN_BNDRY()
 ! Output
 !    z_bad:  Gamma_alpha for each contour
 !    dz_bad:  d Gamma_alpha
-!    z0_bad: centres for boxes 
+!    z0_box: centres for boxes 
 !
 ! local variables
    implicit none
@@ -330,6 +332,84 @@ subroutine BAD_DOMAIN_BNDRY()
       close(32)
 
 end subroutine BAD_DOMAIN_BNDRY
+
+!----------------------------------------------------------------------
+
+
+subroutine BUILD_CLOSEEVAL_GRID()
+!
+! Define a few points within each box in the "bad domain". 
+! Reference: 
+! Alex Barnett, EVALUATION OF LAYER POTENTIALS CLOSE TO THE BOUNDARY FOR LAPLACE AND 
+! HELMHOLTZ PROBLEMS ON ANALYTIC PLANAR DOMAINS
+! SIAM J. Sci. Stat. Comput. 2012
+! Input
+!    z0_box: Array of box centers.
+! Output
+!    zgrd_bad:  grid point in each box 
+!    dzgrd_bad: d grid point in each box
+! local variables
+   implicit none
+   integer :: i, ibox, kbod, istart, istartb, kmode
+   integer :: ipoint, jpoint,inum, npb
+   real(kind=8) alpha_bad
+   complex(kind=8) theta, th
+   character(32) :: options
+   
+!
+! FFT work arrays
+   real(kind=8) wsave(4*nd + 15)
+   complex(kind=8) :: zf(nd)
+
+! Grid point in the bad region
+   complex(kind=8) :: zgrd_bad(nd*nr*ntheta)
+   
+!
+! open unit for matlab plotting
+      open(unit = 31, file = 'mat_plots/bad_grid_points.m')
+      options = '''r'',''LineWidth'',1'
+
+      call DCFFTI (nd, wsave)
+      
+      alpha_bad = 5.d0*h
+      istart = 0
+      istartb = 0
+      npb   = nr*ntheta
+      do kbod = k0, k
+         do i = 1, nd
+            zf(i) = z(istart+i)
+         end do
+         call DCFFTF (nd, zf, wsave)
+!
+! first use these Fourier coefficients to calculate the grid points.
+         do ibox = 1, nd/5
+            theta = (ibox-0.5d0)*alpha_bad
+            do ipoint = 1, nr
+                if(kbod.eq.0) then
+                    th = theta + eye*ipoint/(nr + 1.d0)*alpha_bad
+                else
+                    th = theta - eye*ipoint/(nr + 1.d0)*alpha_bad
+                end if
+                do jpoint = 1, ntheta
+                    inum = (ibox-1)*npb + (ipoint-1)*ntheta  &
+                            + jpoint 
+                    th = th + 1.d0*jpoint*alpha_bad/(ntheta + 1.d0)  
+                    zgrd_bad(inum) = zf(1)/nd
+                    do kmode = 1, nd/2 - 1
+                        zgrd_bad(inum) = zgrd_bad(inum) &
+                                + zf(kmode+1)*cdexp(eye*kmode*th)/nd
+                        zgrd_bad(inum) = zgrd_bad(inum) &
+                                + zf(nd-kmode+1)*cdexp(-eye*kmode*th)/nd
+                    end do
+                    call Z_PLOT(zgrd_bad(inum), 1, options, 31)
+                end do
+            end do
+         end do
+         istart = istart + nd
+      end do
+
+
+end subroutine BUILD_CLOSEEVAL_GRID
 
 !----------------------------------------------------------------------
 
@@ -417,7 +497,7 @@ subroutine BUILD_GRID(i_grd, x_grd, y_grd)
       i_tmp = 0
             
 ! set parameters for FMM routine 
-	
+    
       iprec = 5   ! err < 10^-14
       ifcharge = 0 ! no charges, only dipoles
       ifdipole = 1
@@ -464,7 +544,7 @@ subroutine BUILD_GRID(i_grd, x_grd, y_grd)
                           grad, ifhess, hess, ntarget, target, ifpottarg, &
                           pottarg, ifgradtarg, gradtarg, ifhesstarg, hesstarg)
          call PRINI(6, 13)
-	
+    
          if (ier.eq.4) then
             print *, 'ERROR IN FMM: Cannot allocate tree workspace'
             stop
@@ -475,7 +555,7 @@ subroutine BUILD_GRID(i_grd, x_grd, y_grd)
             print *, 'ERROR IN FMM: Cannot allocate multipole expansion workspace' 
             stop
          end if
-	  
+      
 ! unpack into grid
          jstart = 1
          do i = 1, nx
@@ -526,7 +606,7 @@ subroutine BUILD_GRID(i_grd, x_grd, y_grd)
                           grad, ifhess, hess, ntarget, target, ifpottarg, &
                           pottarg, ifgradtarg, gradtarg, ifhesstarg, hesstarg)
       call PRINI(6, 13)
-	
+    
       if (ier.eq.4) then
          print *, 'ERROR IN FMM: Cannot allocate tree workspace'
          stop
@@ -713,7 +793,7 @@ subroutine BUILD_GRID_OLD(i_grd, x_grd, y_grd)
       end do
 
 ! set parameters for FMM routine 
-	
+    
       iprec = 5   ! err < 10^-14
       ifcharge = 0 ! no charges, only dipoles
       ifdipole = 1
@@ -732,7 +812,7 @@ subroutine BUILD_GRID_OLD(i_grd, x_grd, y_grd)
                           grad, ifhess, hess, ntarget, target, ifpottarg, &
                           pottarg, ifgradtarg, gradtarg, ifhesstarg, hesstarg)
       call PRINI(6, 13)
-	
+    
       if (ier.eq.4) then
          print *, 'ERROR IN FMM: Cannot allocate tree workspace'
          stop
@@ -743,7 +823,7 @@ subroutine BUILD_GRID_OLD(i_grd, x_grd, y_grd)
          print *, 'ERROR IN FMM: Cannot allocate multipole expansion workspace' 
          stop
       end if
-	  
+      
 ! unpack into grid
       istart = 1
       do i = 1, nx
