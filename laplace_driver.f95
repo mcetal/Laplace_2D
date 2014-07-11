@@ -62,7 +62,7 @@ program LAPLACE_2D
    
 !
 ! Get solution on the grid
-!   call BUILD_BARNETT(mu, cm)
+   call BUILD_BARNETT(mu, cm)
    call GET_SOL_GRID(mu, A_log, i_grd, x_grd, y_grd, u_grd, umin, umax)
 !
 ! Check solution at target points
