@@ -350,10 +350,10 @@ subroutine BUILD_CLOSEEVAL_GRID()
 !    dzgrd_bad: d grid point in each box
 ! local variables
    implicit none
-   integer :: i, ibox, kbod, istart, istartb, kmode
-   integer :: ipoint, jpoint,inum, npb
-   real(kind=8) alpha_bad
-   complex(kind=8) theta, th
+   integer :: i, kbod, istart, istartb, kmode
+   integer :: ipoint, jpoint,inum, npalph
+   real(kind=8) alpha_bad, hbad
+   complex(kind=8) th
    character(32) :: options
    
 !
@@ -372,29 +372,26 @@ subroutine BUILD_CLOSEEVAL_GRID()
       call DCFFTI (nd, wsave)
       
       alpha_bad = 5.d0*h
+      hbad = 2.d0*pi/(nd/5*ntheta);
       istart = 0
       istartb = 0
-      npb   = nr*ntheta
+      npalph   = ntheta*nd/5
       do kbod = k0, k
          do i = 1, nd
             zf(i) = z(istart+i)
          end do
          call DCFFTF (nd, zf, wsave)
-!
 ! first use these Fourier coefficients to calculate the grid points.
-         do ibox = 1, nd/5
-            theta = (ibox-0.5d0)*alpha_bad
-            do ipoint = 1, nr
-                if(kbod.eq.0) then
-                    th = theta + eye*ipoint/(nr + 1.d0)*alpha_bad
-                else
-                    th = theta - eye*ipoint/(nr + 1.d0)*alpha_bad
-                end if
-                do jpoint = 1, ntheta
-                    inum = (ibox-1)*npb + (ipoint-1)*ntheta  &
-                            + jpoint 
-                    th = th + 1.d0*jpoint*alpha_bad/(ntheta + 1.d0)  
-                    zgrd_bad(inum) = zf(1)/nd
+         do ipoint = 1, nr
+            if(kbod.eq.0) then
+                th = eye*ipoint/(nr + 1.d0)*alpha_bad
+            else
+                th = - eye*ipoint/(nr + 1.d0)*alpha_bad
+            end if
+            do jpoint = 1, npalph 
+                inum = (ipoint - 1)*npalph + jpoint 
+                th = th + hbad  
+                zgrd_bad(inum) = zf(1)/nd
                     do kmode = 1, nd/2 - 1
                         zgrd_bad(inum) = zgrd_bad(inum) &
                                 + zf(kmode+1)*cdexp(eye*kmode*th)/nd
@@ -402,7 +399,6 @@ subroutine BUILD_CLOSEEVAL_GRID()
                                 + zf(nd-kmode+1)*cdexp(-eye*kmode*th)/nd
                     end do
                     call Z_PLOT(zgrd_bad(inum), 1, options, 31)
-                end do
             end do
          end do
          istart = istart + nd

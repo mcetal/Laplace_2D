@@ -13,3 +13,4 @@ mat_plots/geo_bad_box.m
 mat_plots/mu_resample.m
 mat_plots/*~
 lib/*.a
+lib/liblapack.a
