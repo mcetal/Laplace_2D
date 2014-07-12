@@ -917,7 +917,6 @@ subroutine XY_PLOT(x, y, n, options, iw)
 
       write(iw, *) 'x = ['
       write(iw, '(2(D15.6))') (x(i), y(i), i = 1, n)
-      write(iw, '(2(D15.6))') x(1), y(1)
       write(iw, *) '];'
       write(iw, *) trim(plot_str) // trim(options) // &
                    trim(end_bracket)
@@ -925,6 +924,41 @@ subroutine XY_PLOT(x, y, n, options, iw)
       
 end subroutine XY_PLOT
 
+
+!----------------------------------------------------------------------
+
+subroutine Y_PLOT(y, n, options, iw)
+!
+! This subroutine writes out the curve specified by its nodes x, y
+! for matlab plotting. It assumes the curve is not closed, i.e. 
+! (x(1), y(1)) <> (x(n), y(n))
+! Inputs:
+!    (x, y):  points on curve
+!    n: number of points on curve
+!    options: a string for plotting options for matlab command "plot"
+!    iw:  the fortran unit number on which the output data set is written
+! Outputs:
+!    none
+! 
+   implicit none
+   integer, intent(in) :: n, iw
+   real(kind=8), intent(in) :: y(n)
+   character(32), intent(in) :: options
+! local variables
+   character(32) :: plot_str, end_bracket
+   integer :: i
+   
+      plot_str = 'plot(x,'
+      end_bracket = ')'
+
+      write(iw, *) 'x = ['
+      write(iw, '(1(D15.6))') (y(i), i = 1, n)
+      write(iw, *) '];'
+      write(iw, *) trim(plot_str) // trim(options) // &
+                   trim(end_bracket)
+      write(iw, *) 'hold on'
+      
+end subroutine Y_PLOT
 
 !----------------------------------------------------------------------
 

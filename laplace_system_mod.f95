@@ -598,29 +598,50 @@ end subroutine MATVEC_DEBUG
 !----------------------------------------------------------------------
 
 subroutine BUILD_BARNETT (mu, cm)
-   use geometry_mod, only: k0, k, nd, nbk, z_res, dz_res, ibeta
+   use geometry_mod, only: k0, k, nd, nbk, z_res, dz_res, ibeta, XY_PLOT, pi
    implicit none
    real(kind=8), intent(in) :: mu(nbk)
    real(kind=8), intent(out) :: cm(k0:k,nd/5,p)
 !
 ! local variables
-   integer :: kbod, istart, istartr, nb
-   real(kind=8) :: mu_res(ibeta*nd)
+   integer :: i, kbod, istart, istartr, nb
+   real(kind=8) :: mu_res(ibeta*nbk), alpha(nd), alpha_res(ibeta*nd)
    complex(kind=8) :: zmu(nd), zmu_res(ibeta*nd), work(3*nd+3*ibeta*nd+20)
+   character(32) :: options, optionsb
+   
+      open (unit=51, file = 'mat_plots/density.m')
+      options = '''b'',''LineWidth'',1'
+      optionsb = '''r'',''LineWidth'',1'
+      open (unit=52, file = 'mat_plots/density_res.m')
+      
+!
+! parameters for plotting
+      do i = 1, nd
+         alpha(i) = (i-1.d0)*2.d0*pi/nd
+      end do
+      call prin2(' alpha=*', alpha, nd)
+      do i = 1, ibeta*nd
+         alpha_res(i) = (i-1.d0)*2.d0*pi/(ibeta*nd)
+      end do
 !
 ! calculate surrogate expansions
       nb = nd/5
       istart = 0
       istartr = 0
+      
       do kbod = k0, k
          zmu = mu(istart+1:istart+nd)
+         call XY_PLOT(alpha, mu(istart+1), nd, options, 51)
          call PRIN2 ('zmu = *', zmu, 2*nd)
          call FINTERC (zmu, zmu_res, nd, ibeta*nd, work)
-         mu_res = zmu_res
+         mu_res(istartr+1:istartr+nd*ibeta) = zmu_res
+         call XY_PLOT (alpha_res, mu_res(istartr+1), ibeta*nd, optionsb, 52)
          call PRIN2 ('mu_res = *', mu_res, nd*ibeta)
          istart = istart + nd
          istartr = istartr + ibeta*nd
       end do
+      close(51)
+      close(52)
    
 end subroutine BUILD_BARNETT
 

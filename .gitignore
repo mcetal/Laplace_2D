@@ -10,7 +10,8 @@ mat_plots/geo_bad_contours.m
 mat_plots/target_points.m
 mat_plots/geo_resample.m
 mat_plots/geo_bad_box.m
-mat_plots/mu_resample.m
+mat_plots/density.m
+mat_plots/density_res.m
 mat_plots/*~
 lib/*.a
 lib/liblapack.a
