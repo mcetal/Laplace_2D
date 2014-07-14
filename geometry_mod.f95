@@ -381,16 +381,16 @@ subroutine BUILD_CLOSEEVAL_GRID()
 !
 ! first use these Fourier coefficients to calculate the grid points.
        
-         inum = kbod*nr*ntheta  
+          
          do ipoint = 1, nr
        		if(kbod.eq.0) then
             	th = eye*ipoint/(nr + 1.d0)*alpha_bad
             else
                 th = - eye*ipoint/(nr + 1.d0)*alpha_bad
             end if
-			inum = inum + (ipoint - 1)*ntheta
+			
             do jpoint = 1, ntheta
-                    inum = inum + jpoint 
+                    inum = kbod*nr*ntheta + (ipoint-1)*ntheta + jpoint 
                     th = th + hbad  
                     zgrd_bad(inum) = zf(1)/nd
                     do kmode = 1, nd/2 - 1

@@ -558,16 +558,7 @@ end subroutine GET_SOL_GRID
 
 subroutine GET_CLOSEEVAL_SOL_GRID(ugrd_bad)
 
-! Calculate solution at grid points 
-! Inputs:
-!   mu: density of integral operator
-!   A_log: strength of log sources
-!   i_grd(i,j): flags whether grid point in domain or not
-!   x_grd, y_grd: grid points
-! Returns:
-!   u_grd: solution
-!   umin: minimum solution value
-!   umax: maximum solution value
+! Calculate solution at grid points in the bad region. 
 
    use geometry_mod, only: k0, k, pi, h, eye, z, dz, bounded, &
                            zgrd_bad, z0_box,nr, ntheta, nd 
@@ -589,15 +580,16 @@ subroutine GET_CLOSEEVAL_SOL_GRID(ugrd_bad)
 		do i = 1, nr
 			do j = 1,ntheta
 				ipoint = kbod*nr*ntheta + (i-1)*ntheta + j
-				ibox = j/ntheta/nb
+				ibox = j/(ntheta/nb) + 1
+				if(ibox.ge.nb) then
+					ibox = nb
+				end if
 				zpoint = zgrd_bad(ipoint)
 				z0 = z0_box(ibox)
 				ugrd_bad(ipoint) = 0.d0
 				do im = 1, p
-
 					ugrd_bad(ipoint) = ugrd_bad(ipoint) + &
-						dreal(cm(kbod, ibox, im)*(zpoint - z0)**im)
-		
+						dreal(cm(kbod, ibox, im)*((zpoint - z0)**(im-1)))	
 						
 				end do
 			end do			

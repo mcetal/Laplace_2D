@@ -626,7 +626,7 @@ subroutine BUILD_BARNETT (mu)
       do i = 1, nd
          alpha(i) = (i-1.d0)*2.d0*pi/nd
       end do
-      call prin2(' alpha=*', alpha, nd)
+     ! call prin2(' alpha=*', alpha, nd)
       do i = 1, ibeta*nd
          alpha_res(i) = (i-1.d0)*2.d0*pi/(ibeta*nd)
       end do
@@ -639,11 +639,11 @@ subroutine BUILD_BARNETT (mu)
       do kbod = k0, k
          zmu = mu(istart+1:istart+nd)
          call XY_PLOT(alpha, mu(istart+1), nd, options, 51)
-         call PRIN2 ('zmu = *', zmu, 2*nd)
+       !  call PRIN2 ('zmu = *', zmu, 2*nd)
          call FINTERC (zmu, zmu_res, nd, m, work)
          mu_res(istartr+1:istartr+m) = zmu_res
          call XY_PLOT (alpha_res, mu_res(istartr+1), m, optionsb, 52)
-         call PRIN2 ('mu_res = *', mu_res, m)
+       !  call PRIN2 ('mu_res = *', mu_res, m)
          istart = istart + nd
          istartr = istartr + m
       end do
@@ -652,9 +652,8 @@ subroutine BUILD_BARNETT (mu)
 
 ! Calculate the coefficients c_m 
 	do kbod = k0, k
-		do j = 1, p		
-			do ipoint = 1, m
-				ibox = ipoint/ntheta/nb + 1
+		do ibox = 1, nb
+			do j = 1, p		
 				cm(kbod, ibox, j) = 0.d0
 			end do 
 		end do
@@ -662,16 +661,16 @@ subroutine BUILD_BARNETT (mu)
 
 
 	do kbod = k0, k
-		inum = kbod*m
-		do j = 1, p		
-			do ipoint = 1, m
-				ibox = ipoint/ntheta/nb + 1
-				inum = inum + 1
-				cm(kbod, ibox, j) = cm(kbod, ibox, j) + &
-					mu_res(inum)/(z_res(inum) - &
-	 			   z0_box(ibox))**j*dz_res(inum)
-			end do
-			cm(kbod, ibox, j) = cm(kbod, ibox, j)*eye/m 
+		do ibox = 1,nb
+			do j = 1, p		
+				do ipoint = 1,m
+					inum = kbod*m + ipoint
+					zb_g = (z_res(inum) - z0_box(ibox))**j
+					zb_g = zb_g/dz_res(inum)
+					cm(kbod, ibox, j) = cm(kbod, ibox, j) + &
+					mu_res(inum)/zb_g*eye/m
+				end do
+			end do  
 		end do
 	end do
  
