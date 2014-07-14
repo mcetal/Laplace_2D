@@ -27,7 +27,7 @@ module laplace_system_mod
    
 ! Stuff for Barnett's close evaluation of layer potentials 
    integer, parameter :: p = 10  
-   real(kind=8) :: cm(p*nmax/5)
+   complex(kind=8) :: cm(kmax, nmax/5, p)
    
 ! 
 !   external MSOLVE, MATVEC_DIR
@@ -597,17 +597,17 @@ end subroutine MATVEC_DEBUG
 
 !----------------------------------------------------------------------
 
-subroutine BUILD_BARNETT (mu, cm)
+subroutine BUILD_BARNETT (mu)
 ! Reference:
 ! Alex Barnett, EVALUATION OF LAYER POTENTIALS CLOSE TO THE BOUNDARY FOR LAPLACE AND 
 ! HELMHOLTZ PROBLEMS ON ANALYTIC PLANAR DOMAINS
 ! SIAM J. Sci. Stat. Comput. 2012
 ! 
    use geometry_mod, only: k0, k, nd, nbk, z_res, dz_res, ibeta, XY_PLOT, pi, &
-						   zgrd_bad,p, nr, ntheta, z0_box, eye
+						   zgrd_bad,nr, ntheta, z0_box, eye
    implicit none
    real(kind=8), intent(in) :: mu(nbk)
-   real(kind=8), intent(out) :: cm(k0:k,nd/5,p)
+!   real(kind=8), intent(out) :: cm(k0:k,nd/5,p)
 !
 ! local variables
    integer :: i, kbod, istart, istartr, nb, ipoint, im, m, ibox, inum, j
@@ -669,7 +669,7 @@ subroutine BUILD_BARNETT (mu, cm)
 				inum = inum + 1
 				cm(kbod, ibox, j) = cm(kbod, ibox, j) + &
 					mu_res(inum)/(z_res(inum) - &
-	 			   z0_box(ibox))**(j + 1)*dz_res(inum)
+	 			   z0_box(ibox))**j*dz_res(inum)
 			end do
 			cm(kbod, ibox, j) = cm(kbod, ibox, j)*eye/m 
 		end do

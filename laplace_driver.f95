@@ -64,13 +64,14 @@ program LAPLACE_2D
 !
 ! Get solution on the grid
    call RESAMPLE_DOMAIN()
-   call BUILD_BARNETT(mu, cm)
+   call BUILD_BARNETT(mu)
    call GET_SOL_GRID(mu, A_log, i_grd, x_grd, y_grd, u_grd, umin, umax)
-   call GET_CLOSEEVAL_SOL_GRID(cm)
+   call GET_CLOSEEVAL_SOL_GRID(ugrd_bad)
 ! Check solution at target points
    if (debug) then
       call GET_SOL_TAR(ntar, z_tar, mu, A_log, u_tar)
       call CHECK_ERROR_GRID(i_grd, x_grd, y_grd, u_grd, umin, umax)
+	  call CHECK_ERROR_CLOSEEVAL_GRID(ugrd_bad,umin, umax)
    end if
 
 end program LAPLACE_2D
@@ -553,6 +554,58 @@ subroutine GET_SOL_GRID(mu, A_log, i_grd, x_grd, y_grd, u_grd, umin, umax)
          
 end subroutine GET_SOL_GRID
 
+!-----------------------------------------------------------------------
+
+subroutine GET_CLOSEEVAL_SOL_GRID(ugrd_bad)
+
+! Calculate solution at grid points 
+! Inputs:
+!   mu: density of integral operator
+!   A_log: strength of log sources
+!   i_grd(i,j): flags whether grid point in domain or not
+!   x_grd, y_grd: grid points
+! Returns:
+!   u_grd: solution
+!   umin: minimum solution value
+!   umax: maximum solution value
+
+   use geometry_mod, only: k0, k, pi, h, eye, z, dz, bounded, &
+                           zgrd_bad, z0_box,nr, ntheta, nd 
+
+
+   use laplace_system_mod, only: cm, p
+
+   implicit none
+   real(kind=8), intent(out) :: ugrd_bad((k-k0)*nr*ntheta)
+
+
+! local variables
+   integer :: i, j, ipoint, kbod,nb, im, ibox
+   complex(kind=8):: zpoint, z0 
+	
+	nb = nd/5
+
+	do kbod = k0, k
+		do i = 1, nr
+			do j = 1,ntheta
+				ipoint = kbod*nr*ntheta + (i-1)*ntheta + j
+				ibox = j/ntheta/nb
+				zpoint = zgrd_bad(ipoint)
+				z0 = z0_box(ibox)
+				ugrd_bad(ipoint) = 0.d0
+				do im = 1, p
+
+					ugrd_bad(ipoint) = ugrd_bad(ipoint) + &
+						dreal(cm(kbod, ibox, im)*(zpoint - z0)**im)
+		
+						
+				end do
+			end do			
+		end do
+	end do	
+
+
+end subroutine GET_CLOSEEVAL_SOL_GRID
 !----------------------------------------------------------------------
 
 subroutine CHECK_ERROR_GRID(i_grd, x_grd, y_grd, u_grd, umin, umax)
@@ -593,3 +646,44 @@ subroutine CHECK_ERROR_GRID(i_grd, x_grd, y_grd, u_grd, umin, umax)
       call PRIN2 ('Max relative error on grid = *', err / u_inf, 1)
          
 end subroutine CHECK_ERROR_GRID
+!------------------------------------------------------------------
+
+subroutine CHECK_ERROR_CLOSEEVAL_GRID(ugrd_bad,umin,umax)
+
+! Checks error in solution at grid points 
+! Inputs:
+!   i_grd(i,j): flags whether grid point in domain or not
+!   x_grd, y_grd: grid points
+!   u_grd: solution
+!   umin, umax: min and max of solution
+
+   use geometry_mod, only: k, k0, nr, ntheta, zgrd_bad, bounded
+   implicit none
+   real(kind=8), intent(in) :: ugrd_bad((k-k0)*nr*ntheta), &
+								umin, umax
+!
+! local variables
+   integer :: i, j, kbod, ipoint
+   real(kind=8) :: err, u_ex, u_inf, U_EXACT
+   complex(kind=8) :: z_grid
+
+      err = 0.d0
+      u_inf = max(dabs(umin), dabs(umax))
+	  do kbod = k0, k
+      	do i = 1, nr
+        	 do j = 1, ntheta
+				ipoint = kbod*nr*ntheta + (i-1)*ntheta + j
+            	z_grid = zgrd_bad(ipoint)
+               	u_ex = U_EXACT(bounded, z_grid)
+               	err = max(err, dabs(u_ex - ugrd_bad(ipoint)))
+         !      call PRIN2 ('u_ex = *', u_ex, 1)
+         !      call PRIN2 ('  u_grd = *', u_grd(i,j), 1)
+            end do
+         end do
+      end do
+      
+      call PRIN2 ('Max error on grid = *', err, 1)
+      call PRIN2 ('Max relative error on grid = *', err / u_inf, 1)
+         
+end subroutine CHECK_ERROR_CLOSEEVAL_GRID
+
