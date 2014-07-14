@@ -48,14 +48,15 @@ module geometry_mod
               ic_pnt(kmax+1) 
 !
 ! resampled domain variables
-   integer, parameter :: ibeta = 4
+   integer, parameter :: ibeta = 4, p = 20
    real(kind=8) :: x_res(ibeta*nmax), y_res(ibeta*nmax), ds_res(ibeta*nmax)
    complex(kind=8) :: z_res(ibeta*nmax), dz_res(ibeta*nmax)
 !
 ! Grid variables
    integer :: nx, ny, i_grd(ngrd_max), nr, ntheta
    real(kind=8) :: x_grd(ngrd_max), y_grd(ngrd_max)
-   real(kind=8) :: xbad_grd(ngrd_max), ybad_grd(ngrd_max)
+   real(kind=8) :: xgrd_bad(ngrd_max), ygrd_bad(ngrd_max)
+   complex(kind=8):: zgrd_bad(ngrd_max)!, dzgrd_bad(ngrd_max)
       
 contains
    
@@ -350,10 +351,10 @@ subroutine BUILD_CLOSEEVAL_GRID()
 !    dzgrd_bad: d grid point in each box
 ! local variables
    implicit none
-   integer :: i, kbod, istart, istartb, kmode
-   integer :: ipoint, jpoint,inum, npalph
+   integer :: i, ibox, kbod, istart, istartb, kmode
+   integer :: ipoint, jpoint,inum
    real(kind=8) alpha_bad, hbad
-   complex(kind=8) th
+   complex(kind=8) theta, th
    character(32) :: options
    
 !
@@ -361,10 +362,6 @@ subroutine BUILD_CLOSEEVAL_GRID()
    real(kind=8) wsave(4*nd + 15)
    complex(kind=8) :: zf(nd)
 
-! Grid point in the bad region
-   complex(kind=8) :: zgrd_bad(nd*nr*ntheta)
-   
-!
 ! open unit for matlab plotting
       open(unit = 31, file = 'mat_plots/bad_grid_points.m')
       options = '''r'',''LineWidth'',1'
@@ -372,26 +369,30 @@ subroutine BUILD_CLOSEEVAL_GRID()
       call DCFFTI (nd, wsave)
       
       alpha_bad = 5.d0*h
-      hbad = 2.d0*pi/(nd/5*ntheta);
       istart = 0
       istartb = 0
-      npalph   = ntheta*nd/5
+	  
+	  hbad = 2.d0*pi/ntheta
       do kbod = k0, k
          do i = 1, nd
             zf(i) = z(istart+i)
          end do
          call DCFFTF (nd, zf, wsave)
+!
 ! first use these Fourier coefficients to calculate the grid points.
+       
+         inum = kbod*nr*ntheta  
          do ipoint = 1, nr
-            if(kbod.eq.0) then
-                th = eye*ipoint/(nr + 1.d0)*alpha_bad
+       		if(kbod.eq.0) then
+            	th = eye*ipoint/(nr + 1.d0)*alpha_bad
             else
                 th = - eye*ipoint/(nr + 1.d0)*alpha_bad
             end if
-            do jpoint = 1, npalph 
-                inum = (ipoint - 1)*npalph + jpoint 
-                th = th + hbad  
-                zgrd_bad(inum) = zf(1)/nd
+			inum = inum + (ipoint - 1)*ntheta
+            do jpoint = 1, ntheta
+                    inum = inum + jpoint 
+                    th = th + hbad  
+                    zgrd_bad(inum) = zf(1)/nd
                     do kmode = 1, nd/2 - 1
                         zgrd_bad(inum) = zgrd_bad(inum) &
                                 + zf(kmode+1)*cdexp(eye*kmode*th)/nd
@@ -399,8 +400,18 @@ subroutine BUILD_CLOSEEVAL_GRID()
                                 + zf(nd-kmode+1)*cdexp(-eye*kmode*th)/nd
                     end do
                     call Z_PLOT(zgrd_bad(inum), 1, options, 31)
+                
             end do
-         end do
+		!	call FDIFFF(zgrd_bad(inum - ntheta + 1), dzgrd_bad(inum - ntheta +1), ntheta, wsave)
+         
+		!	do i = 1, ntheta
+		!		print *, dzgrd_bad(inum - ntheta +i)
+        !    	if (kbod.ne.0) then
+        !       		dzgrd_bad(inum - ntheta + i) = -dzgrd_bad(inum - ntheta + i)
+        !    	end if
+        ! 	end do
+
+       end do
          istart = istart + nd
       end do
 

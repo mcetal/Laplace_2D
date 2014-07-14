@@ -20,7 +20,8 @@ program LAPLACE_2D
    real(kind=8) :: rhs(nmax+kmax)
 !
 ! Solution on grid
-   real(kind=8) :: u_grd(ngrd_max), umin, umax
+   real(kind=8) :: u_grd(ngrd_max), umin, umax, &
+				ugrd_bad(ngrd_max)
 !
 ! Matrix equation solution from GMRES
    real(kind=8) :: soln(nmax+kmax)
@@ -62,9 +63,10 @@ program LAPLACE_2D
    
 !
 ! Get solution on the grid
+   call RESAMPLE_DOMAIN()
    call BUILD_BARNETT(mu, cm)
    call GET_SOL_GRID(mu, A_log, i_grd, x_grd, y_grd, u_grd, umin, umax)
-!
+   call GET_CLOSEEVAL_SOL_GRID(cm)
 ! Check solution at target points
    if (debug) then
       call GET_SOL_TAR(ntar, z_tar, mu, A_log, u_tar)
@@ -140,7 +142,7 @@ subroutine INITIALIZE(debug)
       end if
 ! initialize close evaluation grid
 	  nr = 5
-	  ntheta = 5
+	  ntheta = 250
 end subroutine INITIALIZE
 
 !----------------------------------------------------------------------
