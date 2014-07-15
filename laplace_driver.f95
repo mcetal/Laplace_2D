@@ -581,9 +581,9 @@ subroutine GET_CLOSEEVAL_SOL_GRID(ugrd_bad)
 			do j = 1,ntheta
 				ipoint = kbod*nr*ntheta + (i-1)*ntheta + j
 				ibox = j/(ntheta/nb) + 1
-				if(ibox.ge.nb) then
-					ibox = nb
-				end if
+				if(mod(j, ntheta/nb).eq.0) then
+					ibox = ibox - 1
+				end if			
 				zpoint = zgrd_bad(ipoint)
 				z0 = z0_box(ibox)
 				ugrd_bad(ipoint) = 0.d0
