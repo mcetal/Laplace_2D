@@ -660,7 +660,7 @@ subroutine BUILD_BARNETT (mu)
 	do kbod = k0, k
 		do ibox = 1, nb
 			do j = 1, p		
-				cm(kbod, ibox, j) = 0.d0
+				cm(kbod+1, ibox, j) = 0.d0
 			end do 
 		end do
 	end do
@@ -674,7 +674,7 @@ subroutine BUILD_BARNETT (mu)
 					zcauchy = mu_res(inum)*dz_res(inum)/ &
 						((z_res(inum) - z0_box(ibox))**j)
 					zcauchy = hres*zcauchy*z2pii
-					cm(kbod, ibox, j) = cm(kbod, ibox, j) + &
+					cm(kbod+1, ibox, j) = cm(kbod+1, ibox, j) + &
 					zcauchy
 				end do
 			end do  
