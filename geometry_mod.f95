@@ -400,7 +400,8 @@ subroutine BUILD_CLOSEEVAL_GRID()
                                 + zf(nd-kmode+1)*cdexp(-eye*kmode*th)/nd
                     end do
                     call Z_PLOT(zgrd_bad(inum), 1, options, 31)
-                
+               		xgrd_bad(inum) = dreal(zgrd_bad(inum))
+					ygrd_bad(inum) = dimag(zgrd_bad(inum)) 
             end do
 		!	call FDIFFF(zgrd_bad(inum - ntheta + 1), dzgrd_bad(inum - ntheta +1), ntheta, wsave)
          
@@ -414,6 +415,20 @@ subroutine BUILD_CLOSEEVAL_GRID()
        end do
          istart = istart + nd
       end do
+
+	
+      open(unit = 32, file = 'mat_plots/xgrid_bad.m')
+      open(unit = 33, file = 'mat_plots/ygrid_bad.m')
+
+   
+      call X_DUMP(xgrd_bad,(k-k0)*nr*ntheta, 32)
+      call X_DUMP(ygrd_bad, (k-k0)*nr*ntheta,33)
+
+  
+      close(32)
+      close(33)
+ 
+
 
 
 end subroutine BUILD_CLOSEEVAL_GRID
@@ -862,6 +877,27 @@ end subroutine BUILD_GRID_OLD
 !------------------
 ! PLOTTING ROUTINES
 !------------------
+!----------------------------------------------------------------------
+
+subroutine X_DUMP(x, n, iw)
+! This subroutine writes out the vector x 
+! 
+   implicit none
+   integer, intent(in) :: n, iw
+   real(kind=8), intent(in) :: x(n)
+
+! local variables
+   integer :: i
+   
+      
+
+      write(iw, *) 'sol = ['
+      write(iw, '(D15.6)') (x(i), i = 1, n)
+      write(iw, *) '];'
+      
+end subroutine X_DUMP
+
+
 
 !----------------------------------------------------------------------
 

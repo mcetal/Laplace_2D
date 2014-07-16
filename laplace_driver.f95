@@ -21,7 +21,7 @@ program LAPLACE_2D
 !
 ! Solution on grid
    real(kind=8) :: u_grd(ngrd_max), umin, umax, &
-				ugrd_bad(ngrd_max)
+				ugrd_bad(ngrd_max), umin_bad, umax_bad
 !
 ! Matrix equation solution from GMRES
    real(kind=8) :: soln(nmax+kmax)
@@ -66,12 +66,12 @@ program LAPLACE_2D
    call RESAMPLE_DOMAIN()
    call BUILD_BARNETT(mu)
    call GET_SOL_GRID(mu, A_log, i_grd, x_grd, y_grd, u_grd, umin, umax)
-   call GET_CLOSEEVAL_SOL_GRID(ugrd_bad)
+   call GET_CLOSEEVAL_SOL_GRID(ugrd_bad,umin_bad,umax_bad)
 ! Check solution at target points
    if (debug) then
       call GET_SOL_TAR(ntar, z_tar, mu, A_log, u_tar)
       call CHECK_ERROR_GRID(i_grd, x_grd, y_grd, u_grd, umin, umax)
-	  call CHECK_ERROR_CLOSEEVAL_GRID(ugrd_bad,umin, umax)
+	  call CHECK_ERROR_CLOSEEVAL_GRID(ugrd_bad,umin_bad, umax_bad)
    end if
 
 end program LAPLACE_2D
@@ -556,34 +556,44 @@ end subroutine GET_SOL_GRID
 
 !-----------------------------------------------------------------------
 
-subroutine GET_CLOSEEVAL_SOL_GRID(ugrd_bad)
+subroutine GET_CLOSEEVAL_SOL_GRID(ugrd_bad, umin_bad, umax_bad)
 
 ! Calculate solution at grid points in the bad region. 
 
    use geometry_mod, only: k0, k, pi, h, eye, z, dz, bounded, &
-                           zgrd_bad, z0_box,nr, ntheta, nd 
+                           zgrd_bad, z0_box,nr, ntheta, nd,   &
+						   X_DUMP 
 
 
    use laplace_system_mod, only: cm, p
 
    implicit none
-   real(kind=8), intent(out) :: ugrd_bad((k-k0)*nr*ntheta)
+   real(kind=8), intent(out) :: ugrd_bad((k-k0)*nr*ntheta), &
+							umin_bad, umax_bad
 
 
 ! local variables
-   integer :: i, j, ipoint, kbod,nb, im, ibox
-   complex(kind=8):: zpoint, z0 
+   integer :: i, j, ipoint, kbod,nb, im, ibox, iibox
+   complex(kind=8):: zpoint, z0
 	
 	nb = nd/5
+	umin_bad = 1.d10
+	umax_bad = -1.d10
 
 	do kbod = k0, k
 		do i = 1, nr
 			do j = 1,ntheta
 				ipoint = kbod*nr*ntheta + (i-1)*ntheta + j
-				ibox = j/(ntheta/nb) + 1
-				if(mod(j, ntheta/nb).eq.0) then
-					ibox = ibox - 1
-				end if			
+				!ibox = j/(ntheta/nb) + 1
+				!if(mod(j, ntheta/nb).eq.0) then
+				!	ibox = ibox - 1
+				!end if
+				do iibox = 1, nb
+					if((j.ge.(iibox-0.5d0)*ntheta/nb) .and. &
+						j.lt.(iibox + 0.5d0)*ntheta/nb) then
+						ibox = iibox
+					end if
+				end do			
 				zpoint = zgrd_bad(ipoint)
 				z0 = z0_box(ibox)
 				ugrd_bad(ipoint) = 0.d0
@@ -592,9 +602,21 @@ subroutine GET_CLOSEEVAL_SOL_GRID(ugrd_bad)
 						dreal(cm(kbod, ibox, im)*((zpoint - z0)**(im-1)))	
 						
 				end do
+				umin_bad = min(umin_bad, ugrd_bad(ipoint))
+				umax_bad = max(umax_bad, ugrd_bad(ipoint))
 			end do			
 		end do
 	end do	
+
+	open(unit = 31, file = 'mat_plots/ugrid_bad.m')
+
+      write(31, *) 'ulim = ['
+      write(31, '(2(D15.6))') umin_bad, umax_bad
+      write(31, *) '];'
+
+      call X_DUMP(ugrd_bad,(k-k0)*nr*ntheta, 31)
+
+      close(31)
 
 
 end subroutine GET_CLOSEEVAL_SOL_GRID
@@ -640,7 +662,7 @@ subroutine CHECK_ERROR_GRID(i_grd, x_grd, y_grd, u_grd, umin, umax)
 end subroutine CHECK_ERROR_GRID
 !------------------------------------------------------------------
 
-subroutine CHECK_ERROR_CLOSEEVAL_GRID(ugrd_bad,umin,umax)
+subroutine CHECK_ERROR_CLOSEEVAL_GRID(ugrd_bad,umin_bad,umax_bad)
 
 ! Checks error in solution at grid points 
 ! Inputs:
@@ -649,33 +671,41 @@ subroutine CHECK_ERROR_CLOSEEVAL_GRID(ugrd_bad,umin,umax)
 !   u_grd: solution
 !   umin, umax: min and max of solution
 
-   use geometry_mod, only: k, k0, nr, ntheta, zgrd_bad, bounded
+   use geometry_mod, only: k, k0, nr, ntheta, zgrd_bad, bounded, &
+							Y_PLOT
    implicit none
    real(kind=8), intent(in) :: ugrd_bad((k-k0)*nr*ntheta), &
-								umin, umax
+								umin_bad, umax_bad
 !
 ! local variables
    integer :: i, j, kbod, ipoint
-   real(kind=8) :: err, u_ex, u_inf, U_EXACT
+   real(kind=8) :: err, u_ex_bad, u_inf, U_EXACT
    complex(kind=8) :: z_grid
 
+
       err = 0.d0
-      u_inf = max(dabs(umin), dabs(umax))
+      u_inf = max(dabs(umin_bad), dabs(umax_bad))
+
+	
 	  do kbod = k0, k
       	do i = 1, nr
         	 do j = 1, ntheta
 				ipoint = kbod*nr*ntheta + (i-1)*ntheta + j
             	z_grid = zgrd_bad(ipoint)
-               	u_ex = U_EXACT(bounded, z_grid)
-               	err = max(err, dabs(u_ex - ugrd_bad(ipoint)))
-         !      call PRIN2 ('u_ex = *', u_ex, 1)
-         !      call PRIN2 ('  u_grd = *', u_grd(i,j), 1)
+               	u_ex_bad = U_EXACT(bounded, z_grid)	
+               	err = max(err, dabs(u_ex_bad - ugrd_bad(ipoint)))
+				print 1000, kbod, i, j, u_ex_bad, ugrd_bad(ipoint)
+				1000 format(I3,I3,I5,2(D15.6))
+               !call PRIN2 ('u_ex_bad = *', u_ex_bad, 1)
+               !call PRIN2 ('  ugrd_bad = *', ugrd_bad(ipoint), 1)
             end do
          end do
       end do
       
       call PRIN2 ('Max error on grid = *', err, 1)
       call PRIN2 ('Max relative error on grid = *', err / u_inf, 1)
+	
          
+	  close(51)
 end subroutine CHECK_ERROR_CLOSEEVAL_GRID
 

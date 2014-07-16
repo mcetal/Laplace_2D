@@ -611,9 +611,9 @@ subroutine BUILD_BARNETT (mu)
 !
 ! local variables
    integer :: i, kbod, istart, istartr, nb, ipoint, im, m, ibox, inum, j
-   real(kind=8) :: mu_res(ibeta*nbk), alpha(nd), alpha_res(ibeta*nd)
+   real(kind=8) :: mu_res(ibeta*nbk), alpha(nd), alpha_res(ibeta*nd), hres
    complex(kind=8) :: zmu(nd), zmu_res(ibeta*nd), work(3*nd+3*ibeta*nd+20), &
-					  zb_g
+					  zcauchy, z2pii
    character(32) :: options, optionsb
    
       open (unit=51, file = 'mat_plots/density.m')
@@ -650,7 +650,12 @@ subroutine BUILD_BARNETT (mu)
       close(51)
       close(52)
 
-! Calculate the coefficients c_m 
+! Calculate the coefficients c_m
+
+
+	z2pii = -1.d0/(2.d0*pi*eye)
+	hres = 2.d0*pi/m
+ 
 	do kbod = k0, k
 		do ibox = 1, nb
 			do j = 1, p		
@@ -665,10 +670,11 @@ subroutine BUILD_BARNETT (mu)
 			do j = 1, p		
 				do ipoint = 1,m
 					inum = kbod*m + ipoint
-					zb_g = (z_res(inum) - z0_box(ibox))**j
-					zb_g = zb_g/dz_res(inum)
+					zcauchy = mu_res(inum)*dz_res(inum)/ &
+						((z_res(inum) - z0_box(ibox))**j)
+					zcauchy = hres*zcauchy*z2pii
 					cm(kbod, ibox, j) = cm(kbod, ibox, j) + &
-					mu_res(inum)/zb_g*eye/m
+					zcauchy
 				end do
 			end do  
 		end do

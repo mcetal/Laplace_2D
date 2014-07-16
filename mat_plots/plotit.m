@@ -23,10 +23,21 @@ figure(2)
 geo_contours
 target_points
 
-figure(3)
-du = ulim(2) - ulim(1);
+
+
+
+xgrid_bad;
+xg_bad = a;
+ygrid_bad;
+yg_bad = a;
+ugrid_bad;
+ug_bad = a;
+
+
+figure(5)
+du_bad = ulim(2) - ulim(1);
 nc = 40;
-vc = ulim(1):du/nc:ulim(2);
-contour(xg, yg, ug, vc)
+vc = ulim(1):du_bad/nc:ulim(2);
+contour(xg_bad, yg_bad, ug_bad, vc)
 hold on
 geo_contours
