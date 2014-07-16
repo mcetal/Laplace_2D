@@ -568,7 +568,7 @@ subroutine GET_CLOSEEVAL_SOL_GRID(ugrd_bad, umin_bad, umax_bad)
    use laplace_system_mod, only: cm, p
 
    implicit none
-   real(kind=8), intent(out) :: ugrd_bad((k-k0)*nr*ntheta), &
+   real(kind=8), intent(out) :: ugrd_bad((k-k0+1)*nr*ntheta), &
 							umin_bad, umax_bad
 
 
@@ -674,8 +674,8 @@ subroutine CHECK_ERROR_CLOSEEVAL_GRID(ugrd_bad,umin_bad,umax_bad)
    use geometry_mod, only: k, k0, nr, ntheta, zgrd_bad, bounded, &
 							Y_PLOT
    implicit none
-   real(kind=8), intent(in) :: ugrd_bad((k-k0)*nr*ntheta), &
-								umin_bad, umax_bad
+   real(kind=8), intent(in) :: ugrd_bad((k-k0+1)*nr*ntheta), &
+		 umin_bad, umax_bad
 !
 ! local variables
    integer :: i, j, kbod, ipoint
