@@ -101,7 +101,7 @@ subroutine INITIALIZE(debug)
 ! initialize number of holes and points per hole
       k0 = 0
       k = 3
-      nd = 256
+      nd = 250
       bounded = k0==0
       print *, 'bounded = ', bounded
 !
@@ -584,16 +584,16 @@ subroutine GET_CLOSEEVAL_SOL_GRID(ugrd_bad, umin_bad, umax_bad)
 		do i = 1, nr
 			do j = 1,ntheta
 				ipoint = kbod*nr*ntheta + (i-1)*ntheta + j
-				!ibox = j/(ntheta/nb) + 1
-				!if(mod(j, ntheta/nb).eq.0) then
-				!	ibox = ibox - 1
-				!end if
-				do iibox = 1, nb
-					if((j.ge.(iibox-0.5d0)*ntheta/nb) .and. &
-						j.lt.(iibox + 0.5d0)*ntheta/nb) then
-						ibox = iibox
-					end if
-				end do			
+				ibox = j/(ntheta/nb) + 1
+				if(mod(j, ntheta/nb).eq.0) then
+					ibox = ibox - 1
+				end if
+!				do iibox = 1, nb
+!					if((j.ge.(iibox-0.5d0)*ntheta/nb) .and. &
+!						j.lt.(iibox + 0.5d0)*ntheta/nb) then
+!						ibox = iibox
+!					end if
+!				end do			
 				zpoint = zgrd_bad(ipoint)
 				z0 = z0_box(ibox)
 				ugrd_bad(ipoint) = 0.d0
@@ -602,6 +602,7 @@ subroutine GET_CLOSEEVAL_SOL_GRID(ugrd_bad, umin_bad, umax_bad)
 						dreal(cm(kbod+1, ibox, im)*((zpoint - z0)**(im-1)))	
 						
 				end do
+				ugrd_bad(ipoint) = -ugrd_bad(ipoint)
 				umin_bad = min(umin_bad, ugrd_bad(ipoint))
 				umax_bad = max(umax_bad, ugrd_bad(ipoint))
 			end do			
