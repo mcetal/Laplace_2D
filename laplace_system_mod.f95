@@ -635,6 +635,7 @@ subroutine BUILD_BARNETT (mu)
       nb = nd/5
       istart = 0
       istartr = 0
+      
       m = ibeta*nd
       do kbod = k0, k
          zmu = mu(istart+1:istart+nd)
