@@ -596,7 +596,6 @@ subroutine MATVEC_DEBUG(N, XX, YY, NELT, IA, JA, A, ISYM)
 end subroutine MATVEC_DEBUG
 
 !----------------------------------------------------------------------
-
 subroutine BUILD_BARNETT (mu)
 ! Reference:
 ! Alex Barnett, EVALUATION OF LAYER POTENTIALS CLOSE TO THE BOUNDARY FOR LAPLACE AND 
@@ -610,10 +609,10 @@ subroutine BUILD_BARNETT (mu)
 !   real(kind=8), intent(out) :: cm(k0:k,nd/5,p)
 !
 ! local variables
-   integer :: i, kbod, istart, istartr, nb, ipoint, im, m, ibox, inum, j
-   real(kind=8) :: mu_res(ibeta*nbk), alpha(nd), alpha_res(ibeta*nd)
+   integer :: i, kbod, istart, istartr, nb, ipoint, im, m, ibox, inum, j, nbkres
+   real(kind=8) :: mu_res(ibeta*nbk), alpha(nd), alpha_res(ibeta*nd), hres
    complex(kind=8) :: zmu(nd), zmu_res(ibeta*nd), work(3*nd+3*ibeta*nd+20), &
-					  zb_g
+					  zcauchy, z2pii
    character(32) :: options, optionsb
    
       open (unit=51, file = 'mat_plots/density.m')
@@ -635,6 +634,7 @@ subroutine BUILD_BARNETT (mu)
       nb = nd/5
       istart = 0
       istartr = 0
+      
       m = ibeta*nd
       do kbod = k0, k
          zmu = mu(istart+1:istart+nd)
@@ -650,11 +650,16 @@ subroutine BUILD_BARNETT (mu)
       close(51)
       close(52)
 
-! Calculate the coefficients c_m 
+! Calculate the coefficients c_m
+
+
+	z2pii = 1.d0/(2.d0*pi*eye)
+	hres = 2.d0*pi/m
+ 	nbkres = ibeta*nbk
 	do kbod = k0, k
 		do ibox = 1, nb
 			do j = 1, p		
-				cm(kbod, ibox, j) = 0.d0
+				cm(kbod+1, ibox, j) = 0.d0
 			end do 
 		end do
 	end do
@@ -663,12 +668,15 @@ subroutine BUILD_BARNETT (mu)
 	do kbod = k0, k
 		do ibox = 1,nb
 			do j = 1, p		
-				do ipoint = 1,m
-					inum = kbod*m + ipoint
-					zb_g = (z_res(inum) - z0_box(ibox))**j
-					zb_g = zb_g/dz_res(inum)
-					cm(kbod, ibox, j) = cm(kbod, ibox, j) + &
-					mu_res(inum)/zb_g*eye/m
+				do ipoint = 1, nbkres
+					zcauchy = mu_res(ipoint)*dz_res(ipoint)/ &
+						((z_res(ipoint) - z0_box(kbod+1,ibox))**j)
+					zcauchy = hres*zcauchy*z2pii
+					if(kbod .eq. k0) then
+						zcauchy = -1.d0*zcauchy
+					end if
+					cm(kbod+1, ibox, j) = cm(kbod+1, ibox, j) + &
+					zcauchy
 				end do
 			end do  
 		end do
@@ -692,5 +700,6 @@ subroutine BUILD_BARNETT (mu)
 	 !	end do
 	 ! end do
 end subroutine BUILD_BARNETT
+
 
 end module laplace_system_mod

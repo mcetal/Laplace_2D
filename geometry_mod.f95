@@ -40,7 +40,7 @@ module geometry_mod
 ! Boundary of "bad" part of domain - i.e. region close enough to boundary that
 ! trapezoid rule breaks down
    real(kind=8) :: x_bad(nmax), y_bad(nmax), ds_bad(nmax)
-   complex(kind=8) :: z_bad(nmax), dz_bad(nmax), z0_box(nmax/5)
+   complex(kind=8) :: z_bad(nmax), dz_bad(nmax), z0_box(kmax,nmax/5)
 !
 ! Pointer arrays to points in grid that are in "close" region, and which 
 ! contour they are close to
@@ -292,14 +292,14 @@ subroutine BAD_DOMAIN_BNDRY()
              else
                theta = ibox*alpha_bad - 0.5d0*eye*alpha_bad
             end if
-            z0_box(ibox) = zf(1)/nd
+            z0_box(kbod+1,ibox) = zf(1)/nd
             do kmode = 1, nd/2 - 1
-               z0_box(ibox) = z0_box(ibox) &
+               z0_box(kbod+1,ibox) = z0_box(kbod+1,ibox) &
                                 + zf(kmode+1)*cdexp(eye*kmode*theta)/nd
-               z0_box(ibox) = z0_box(ibox) &
+               z0_box(kbod+1,ibox) = z0_box(kbod+1,ibox) &
                                 + zf(nd-kmode+1)*cdexp(-eye*kmode*theta)/nd
             end do
-            call Z_PLOT(z0_box(ibox), 1, optionsb, 32)
+            call Z_PLOT(z0_box(kbod+1,ibox), 1, optionsb, 32)
          end do
 !
 ! now use the Fourier coefficients to calculate the contours of the bad region
@@ -333,6 +333,7 @@ subroutine BAD_DOMAIN_BNDRY()
       close(32)
 
 end subroutine BAD_DOMAIN_BNDRY
+
 
 !----------------------------------------------------------------------
 
@@ -400,7 +401,8 @@ subroutine BUILD_CLOSEEVAL_GRID()
                                 + zf(nd-kmode+1)*cdexp(-eye*kmode*th)/nd
                     end do
                     call Z_PLOT(zgrd_bad(inum), 1, options, 31)
-                
+               		xgrd_bad(inum) = dreal(zgrd_bad(inum))
+					ygrd_bad(inum) = dimag(zgrd_bad(inum)) 
             end do
 		!	call FDIFFF(zgrd_bad(inum - ntheta + 1), dzgrd_bad(inum - ntheta +1), ntheta, wsave)
          
@@ -414,6 +416,20 @@ subroutine BUILD_CLOSEEVAL_GRID()
        end do
          istart = istart + nd
       end do
+
+	
+      open(unit = 32, file = 'mat_plots/xgrid_bad.m')
+      open(unit = 33, file = 'mat_plots/ygrid_bad.m')
+
+   
+      call X_DUMP(xgrd_bad,(k-k0+1)*nr*ntheta, 32)
+      call X_DUMP(ygrd_bad, (k-k0+1)*nr*ntheta,33)
+
+  
+      close(32)
+      close(33)
+ 
+
 
 
 end subroutine BUILD_CLOSEEVAL_GRID
@@ -862,6 +878,28 @@ end subroutine BUILD_GRID_OLD
 !------------------
 ! PLOTTING ROUTINES
 !------------------
+
+!------------------------------------------------------
+
+subroutine X_DUMP(x, n, iw)
+! This subroutine writes out the vector x 
+! 
+   implicit none
+   integer, intent(in) :: n, iw
+   real(kind=8), intent(in) :: x(n)
+
+! local variables
+   integer :: i
+   
+      
+
+      write(iw, *) 'sol = ['
+      write(iw, '(D15.6)') (x(i), i = 1, n)
+      write(iw, *) '];'
+      
+end subroutine X_DUMP
+
+
 
 !----------------------------------------------------------------------
 
