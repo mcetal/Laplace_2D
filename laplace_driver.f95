@@ -602,7 +602,7 @@ subroutine GET_CLOSEEVAL_SOL_GRID(ugrd_bad, umin_bad, umax_bad)
 						dreal(cm(kbod+1, ibox, im)*((zpoint - z0)**(im-1)))	
 						
 				end do
-			!ugrd_bad(ipoint) = -ugrd_bad(ipoint)
+			    ugrd_bad(ipoint) = -ugrd_bad(ipoint)
 
 
 				umin_bad = min(umin_bad, ugrd_bad(ipoint))

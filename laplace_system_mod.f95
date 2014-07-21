@@ -655,7 +655,7 @@ subroutine BUILD_BARNETT (mu)
 
 
 
-	z2pii = 1.d0/(2.d0*pi*eye)
+	z2pii = -1.d0/(2.d0*pi*eye)
 	hres = 2.d0*pi/m
  	nbkres = ibeta*nbk
 	do kbod = k0, k
@@ -674,9 +674,9 @@ subroutine BUILD_BARNETT (mu)
 					zcauchy = mu_res(ipoint)*dz_res(ipoint)/ &
 						((z_res(ipoint) - z0_box(kbod+1,ibox))**j)
 					zcauchy = hres*zcauchy*z2pii
-					if(kbod .eq. k0) then
-						zcauchy = -1.d0*zcauchy
-					end if
+					!if(kbod .eq. k0) then
+					!	zcauchy = -1.d0*zcauchy
+					!end if
 					cm(kbod+1, ibox, j) = cm(kbod+1, ibox, j) + &
 					zcauchy
 				end do
