@@ -71,7 +71,7 @@ program LAPLACE_2D
    if (debug) then
       call GET_SOL_TAR(ntar, z_tar, mu, A_log, u_tar)
       call CHECK_ERROR_GRID(i_grd, x_grd, y_grd, u_grd, umin, umax)
-	  call CHECK_ERROR_CLOSEEVAL_GRID(ugrd_bad,umin, umax)
+	  call CHECK_ERROR_CLOSEEVAL_GRID(ugrd_bad,umin_bad, umax_bad)
    end if
 
 end program LAPLACE_2D
@@ -101,7 +101,7 @@ subroutine INITIALIZE(debug)
 ! initialize number of holes and points per hole
       k0 = 0
       k = 3
-      nd = 256
+      nd = 250
       bounded = k0==0
       print *, 'bounded = ', bounded
 !
@@ -588,7 +588,6 @@ subroutine GET_CLOSEEVAL_SOL_GRID(ugrd_bad, umin_bad, umax_bad)
 				if(mod(j, ntheta/nb).eq.0) then
 					ibox = ibox - 1
 				end if
-			
 !				do iibox = 1, nb
 !					if((j.ge.(iibox-0.5d0)*ntheta/nb) .and. &
 !						j.lt.(iibox + 0.5d0)*ntheta/nb) then
@@ -603,7 +602,9 @@ subroutine GET_CLOSEEVAL_SOL_GRID(ugrd_bad, umin_bad, umax_bad)
 						dreal(cm(kbod+1, ibox, im)*((zpoint - z0)**(im-1)))	
 						
 				end do
-				!ugrd_bad(ipoint) = -ugrd_bad(ipoint)
+			!ugrd_bad(ipoint) = -ugrd_bad(ipoint)
+
+
 				umin_bad = min(umin_bad, ugrd_bad(ipoint))
 				umax_bad = max(umax_bad, ugrd_bad(ipoint))
 			end do			
@@ -664,7 +665,7 @@ subroutine CHECK_ERROR_GRID(i_grd, x_grd, y_grd, u_grd, umin, umax)
 end subroutine CHECK_ERROR_GRID
 !------------------------------------------------------------------
 
-subroutine CHECK_ERROR_CLOSEEVAL_GRID(ugrd_bad,umin,umax)
+subroutine CHECK_ERROR_CLOSEEVAL_GRID(ugrd_bad,umin_bad,umax_bad)
 
 ! Checks error in solution at grid points 
 ! Inputs:
@@ -673,35 +674,42 @@ subroutine CHECK_ERROR_CLOSEEVAL_GRID(ugrd_bad,umin,umax)
 !   u_grd: solution
 !   umin, umax: min and max of solution
 
-   use geometry_mod, only: k, k0, nr, ntheta, zgrd_bad, bounded
+   use geometry_mod, only: k, k0, nr, ntheta, zgrd_bad, bounded, &
+							Y_PLOT
    implicit none
-   real(kind=8), intent(in) :: ugrd_bad((k-k0)*nr*ntheta), &
-								umin, umax
+   real(kind=8), intent(in) :: ugrd_bad((k-k0+1)*nr*ntheta), &
+		 umin_bad, umax_bad
 !
 ! local variables
    integer :: i, j, kbod, ipoint
-   real(kind=8) :: err, u_ex, u_inf, U_EXACT
+   real(kind=8) :: err, u_ex_bad, u_inf, U_EXACT
    complex(kind=8) :: z_grid
 
+
       err = 0.d0
-      u_inf = max(dabs(umin), dabs(umax))
+      u_inf = max(dabs(umin_bad), dabs(umax_bad))
+
+	
 	  do kbod = k0, k
       	do i = 1, nr
         	 do j = 1, ntheta
 				ipoint = kbod*nr*ntheta + (i-1)*ntheta + j
             	z_grid = zgrd_bad(ipoint)
-               	u_ex = U_EXACT(bounded, z_grid)
-               	err = max(err, dabs(u_ex - ugrd_bad(ipoint)))
-				print 1000, kbod, nr, ntheta, u_ex, ugrd_bad(ipoint)
-				1000 format(I3, I3, I4, 2(D15.6))
-         !      call PRIN2 ('u_ex = *', u_ex, 1)
-         !      call PRIN2 ('  u_grd = *', u_grd(i,j), 1)
+               	u_ex_bad = U_EXACT(bounded, z_grid)	
+               	err = max(err, dabs(u_ex_bad - ugrd_bad(ipoint)))
+				print 1000, kbod, i, j, u_ex_bad, ugrd_bad(ipoint)
+				1000 format(I3,I3,I5,2(D15.6))
+               !call PRIN2 ('u_ex_bad = *', u_ex_bad, 1)
+               !call PRIN2 ('  ugrd_bad = *', ugrd_bad(ipoint), 1)
+
             end do
          end do
       end do
       
       call PRIN2 ('Max error on grid = *', err, 1)
       call PRIN2 ('Max relative error on grid = *', err / u_inf, 1)
+	
          
+	  close(51)
 end subroutine CHECK_ERROR_CLOSEEVAL_GRID
 

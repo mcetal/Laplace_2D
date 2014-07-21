@@ -609,6 +609,7 @@ subroutine BUILD_BARNETT (mu)
 !   real(kind=8), intent(out) :: cm(k0:k,nd/5,p)
 !
 ! local variables
+
    integer :: i, kbod, istart, istartr, nb, ipoint, im, m, ibox, inum, j, nbkres
    real(kind=8) :: mu_res(ibeta*nbk), alpha(nd), alpha_res(ibeta*nd), hres
    complex(kind=8) :: zmu(nd), zmu_res(ibeta*nd), work(3*nd+3*ibeta*nd+20), &
@@ -651,6 +652,7 @@ subroutine BUILD_BARNETT (mu)
       close(52)
 
 ! Calculate the coefficients c_m
+
 
 
 	z2pii = 1.d0/(2.d0*pi*eye)
