@@ -101,7 +101,7 @@ subroutine INITIALIZE(debug)
 ! initialize number of holes and points per hole
       k0 = 0
       k = 3
-      nd = 250
+      nd = 500
       bounded = k0==0
       print *, 'bounded = ', bounded
 !
@@ -697,8 +697,8 @@ subroutine CHECK_ERROR_CLOSEEVAL_GRID(ugrd_bad,umin_bad,umax_bad)
             	z_grid = zgrd_bad(ipoint)
                	u_ex_bad = U_EXACT(bounded, z_grid)	
                	err = max(err, dabs(u_ex_bad - ugrd_bad(ipoint)))
-				print 1000, kbod, i, j, u_ex_bad, ugrd_bad(ipoint)
-				1000 format(I3,I3,I5,2(D15.6))
+!				print 1000, kbod, i, j, u_ex_bad, ugrd_bad(ipoint)
+!				1000 format(I3,I3,I5,2(D15.6))
                !call PRIN2 ('u_ex_bad = *', u_ex_bad, 1)
                !call PRIN2 ('  ugrd_bad = *', ugrd_bad(ipoint), 1)
 
