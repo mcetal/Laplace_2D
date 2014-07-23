@@ -101,7 +101,7 @@ subroutine INITIALIZE(debug)
 ! initialize number of holes and points per hole
       k0 = 0
       k = 3
-      nd = 500
+      nd = 1000
       bounded = k0==0
       print *, 'bounded = ', bounded
 !
@@ -143,7 +143,7 @@ subroutine INITIALIZE(debug)
       end if
 ! initialize close evaluation grid
 	  nr = 5
-	  ntheta = 250
+	  ntheta = 100
 end subroutine INITIALIZE
 
 !----------------------------------------------------------------------
@@ -573,33 +573,43 @@ subroutine GET_CLOSEEVAL_SOL_GRID(ugrd_bad, umin_bad, umax_bad)
 
 
 ! local variables
-   integer :: i, j, ipoint, kbod,nb, im, ibox, iibox
+   integer :: i, j, ipoint, kbod,nb, im, ibox(nd), iibox
    complex(kind=8):: zpoint, z0
 	
 	nb = nd/5
 	umin_bad = 1.d10
 	umax_bad = -1.d10
 
+	 do j = 1, ntheta	
+	  	ibox(j) = -1
+	  	do iibox = 1, nb
+		  if((j.ge.(iibox-0.5d0)*ntheta/nb) .and. &
+				j.lt.(iibox + 0.5d0)*ntheta/nb) then
+				ibox(j) = iibox
+			end if
+	  	end do			
+		if(ibox(j).eq.-1) then
+			ibox(j) = nb
+		end if
+	 end do
+
+
+
 	do kbod = k0, k
 		do i = 1, nr
 			do j = 1,ntheta
 				ipoint = kbod*nr*ntheta + (i-1)*ntheta + j
-				ibox = j/(ntheta/nb) + 1
-				if(mod(j, ntheta/nb).eq.0) then
-					ibox = ibox - 1
-				end if
-!				do iibox = 1, nb
-!					if((j.ge.(iibox-0.5d0)*ntheta/nb) .and. &
-!						j.lt.(iibox + 0.5d0)*ntheta/nb) then
-!						ibox = iibox
-!					end if
-!				end do			
+				!ibox = j/(ntheta/nb) + 1
+				!if(mod(j, ntheta/nb).eq.0) then
+				!	ibox = ibox - 1
+				!end if
+					
 				zpoint = zgrd_bad(ipoint)
-				z0 = z0_box(kbod+1,ibox)
+				z0 = z0_box(kbod+1,ibox(j))
 				ugrd_bad(ipoint) = 0.d0
 				do im = 1, p
 					ugrd_bad(ipoint) = ugrd_bad(ipoint) + &
-						dreal(cm(kbod+1, ibox, im)*((zpoint - z0)**(im-1)))	
+						dreal(cm(kbod+1, ibox(j), im)*((zpoint - z0)**(im-1)))	
 						
 				end do
 			    ugrd_bad(ipoint) = -ugrd_bad(ipoint)
@@ -674,31 +684,48 @@ subroutine CHECK_ERROR_CLOSEEVAL_GRID(ugrd_bad,umin_bad,umax_bad)
 !   u_grd: solution
 !   umin, umax: min and max of solution
 
-   use geometry_mod, only: k, k0, nr, ntheta, zgrd_bad, bounded, &
+   use geometry_mod, only: k, k0, nr, nd,ntheta, zgrd_bad, bounded, &
 							Y_PLOT
    implicit none
    real(kind=8), intent(in) :: ugrd_bad((k-k0+1)*nr*ntheta), &
 		 umin_bad, umax_bad
 !
 ! local variables
-   integer :: i, j, kbod, ipoint
+   integer :: i, j, kbod, ipoint,ibox(nd),nb,iibox
    real(kind=8) :: err, u_ex_bad, u_inf, U_EXACT
    complex(kind=8) :: z_grid
 
 
       err = 0.d0
       u_inf = max(dabs(umin_bad), dabs(umax_bad))
+	  nb = nd/5
+	  !do j = 1, ntheta	
+	  !	ibox(j) = -1
+	  !	do iibox = 1, nb
+	  !	  if((j.ge.(iibox-0.5d0)*ntheta/nb) .and. &
+	  !			j.lt.(iibox + 0.5d0)*ntheta/nb) then
+	  !			ibox(j) = iibox
+	  !		end if
+	  !	end do			
+	  !	if(ibox(j).eq.-1) then
+	  !		ibox(j) = nb
+	  !	end if
+	  !end do
 
 	
 	  do kbod = k0, k
       	do i = 1, nr
         	 do j = 1, ntheta
 				ipoint = kbod*nr*ntheta + (i-1)*ntheta + j
-            	z_grid = zgrd_bad(ipoint)
+				!ibox = j/(ntheta/nb) + 1
+				!if(mod(j, ntheta/nb).eq.0) then
+				!	ibox = ibox - 1
+				!end if
+			    z_grid = zgrd_bad(ipoint)
                	u_ex_bad = U_EXACT(bounded, z_grid)	
                	err = max(err, dabs(u_ex_bad - ugrd_bad(ipoint)))
-!				print 1000, kbod, i, j, u_ex_bad, ugrd_bad(ipoint)
-!				1000 format(I3,I3,I5,2(D15.6))
+		!		print 1000, kbod, i, j, ibox(j),u_ex_bad, ugrd_bad(ipoint)
+		!		1000 format(I3,I3,I5,I5,2(D15.6))
                !call PRIN2 ('u_ex_bad = *', u_ex_bad, 1)
                !call PRIN2 ('  ugrd_bad = *', ugrd_bad(ipoint), 1)
 
@@ -706,8 +733,8 @@ subroutine CHECK_ERROR_CLOSEEVAL_GRID(ugrd_bad,umin_bad,umax_bad)
          end do
       end do
       
-      call PRIN2 ('Max error on grid = *', err, 1)
-      call PRIN2 ('Max relative error on grid = *', err / u_inf, 1)
+      call PRIN2 ('Max error on the bad grid = *', err, 1)
+      call PRIN2 ('Max relative error on the bad grid = *', err / u_inf, 1)
 	
          
 	  close(51)
