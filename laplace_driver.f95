@@ -101,7 +101,7 @@ subroutine INITIALIZE(debug)
 ! initialize number of holes and points per hole
       k0 = 0
       k = 3
-      nd = 1000
+      nd = 250
       bounded = k0==0
       print *, 'bounded = ', bounded
 !
@@ -627,7 +627,7 @@ subroutine GET_CLOSEEVAL_SOL_GRID(ugrd_bad, umin_bad, umax_bad)
       write(31, '(2(D15.6))') umin_bad, umax_bad
       write(31, *) '];'
 
-      call X_DUMP(ugrd_bad,(k-k0)*nr*ntheta, 31)
+      call X_DUMP(ugrd_bad,(k-k0+1)*nr*ntheta, 31)
 
       close(31)
 
@@ -691,7 +691,7 @@ subroutine CHECK_ERROR_CLOSEEVAL_GRID(ugrd_bad,umin_bad,umax_bad)
 		 umin_bad, umax_bad
 !
 ! local variables
-   integer :: i, j, kbod, ipoint,ibox(nd),nb,iibox
+   integer :: i, j, kbod, ipoint, nb
    real(kind=8) :: err, u_ex_bad, u_inf, U_EXACT
    complex(kind=8) :: z_grid
 
