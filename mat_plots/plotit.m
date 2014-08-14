@@ -27,11 +27,11 @@ target_points
 
 
 xgrid_bad;
-xg_bad = a;
+xg_bad = sol;
 ygrid_bad;
-yg_bad = a;
+yg_bad = sol;
 ugrid_bad;
-ug_bad = a;
+ug_bad = sol;
 
 
 figure(5)
