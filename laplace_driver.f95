@@ -102,7 +102,7 @@ subroutine INITIALIZE(debug)
 ! initialize number of holes and points per hole
       k0 = 0
       k = 3
-      nd = 250
+      nd = 256
       bounded = k0==0
       print *, 'bounded = ', bounded
 !
@@ -150,7 +150,7 @@ subroutine INITIALIZE(debug)
 	  ig = 15
 
 ! initialize number of boxes 
-	  nb = nd/5
+	  nb = nd/4
 ! initialize close evaluation grid
 	  nr = 5
 	  ntheta = 50
@@ -306,7 +306,7 @@ subroutine GET_SOL_GRID(mu, A_log, i_grd, x_grd, y_grd, u_grd, umin, umax)
    use geometry_mod, only: k0, k, nd, nbk, pi, h, eye, z, dz, bounded, &
                            nx, ny, zk, ds_dth, REAL_GRID_DUMP, &
                            z_res, dz_res, ibeta, RESAMPLE_DOMAIN, &
-                           n_close, i_close, j_close, ic_pnt 
+                           n_close, i_close, j_close, ic_pnt, X_DUMP 
 
    implicit none
    integer, intent(in) :: i_grd(nx,ny)
@@ -428,14 +428,21 @@ subroutine GET_SOL_GRID(mu, A_log, i_grd, x_grd, y_grd, u_grd, umin, umax)
       call PRIN2('Max solution on grid = *', umax, 1)
 
       open(unit = 31, file = 'mat_plots/ugrid.m')
-
+      open(unit = 32, file = 'mat_plots/ugrd_plot.m')
       write(31, *) 'ulim = ['
       write(31, '(2(D15.6))') umin, umax
       write(31, *) '];'
 
+	  write(32, *) 'ulim = ['
+      write(32, '(2(D15.6))') umin, umax
+      write(32, *) '];'
+
+
       call REAL_GRID_DUMP(u_grd, 31)
+	  call X_DUMP(u_grd, nx*ny, 32)
 
       close(31)
+	  close(32)
          
 end subroutine GET_SOL_GRID
 
@@ -576,7 +583,7 @@ subroutine GET_CLOSEEVAL_SOL_GRID(mu_res, A_log,ugrd_bad, &
 		end do
 	end do	
 
-	open(unit = 31, file = 'mat_plots/ugrid_bad.m')
+	open(unit = 31, file = 'mat_plots/ugrd_bad_plot.m')
 
       write(31, *) 'ulim = ['
       write(31, '(2(D15.6))') umin_bad, umax_bad
