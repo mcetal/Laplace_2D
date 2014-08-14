@@ -14,7 +14,7 @@ program LAPLACE_2D
    implicit none
 !
 ! Integral equation density and log sources
-   real(kind=8) :: mu(nmax), A_log(kmax)
+   real(kind=8) :: mu(nmax), mu_res(ibeta*nmax), A_log(kmax)
 !
 ! Right hand side to integral equation 
    real(kind=8) :: rhs(nmax+kmax)
@@ -64,9 +64,9 @@ program LAPLACE_2D
 !
 ! Get solution on the grid
    call RESAMPLE_DOMAIN()
-   call BUILD_BARNETT(mu)
+   call BUILD_BARNETT(mu, mu_res)
    call GET_SOL_GRID(mu, A_log, i_grd, x_grd, y_grd, u_grd, umin, umax)
-   call GET_CLOSEEVAL_SOL_GRID(ugrd_bad, umin_bad, umax_bad)
+   call GET_CLOSEEVAL_SOL_GRID(mu_res, A_log, ugrd_bad, umin_bad, umax_bad)
 ! Check solution at target points
    if (debug) then
       call GET_SOL_TAR(ntar, z_tar, mu, A_log, u_tar)
@@ -87,7 +87,9 @@ subroutine INITIALIZE(debug)
 !   bounded :: true if bounded domain, false if unbounded
 !   dirichlet :: true if Dirichlet BVP, false if Neumann
    use geometry_mod, only: pi, eye, kmax, npmax, nbk, k0, k, nd, h, &
-                           bounded, nx, ny, ngrd_max, nr, ntheta
+                           bounded, nx, ny, ngrd_max, nr, ntheta, hres, &
+						   ndres, nbkres, ig, nb, ibeta
+			
    use laplace_system_mod, only: dirichlet
    implicit none
    logical, intent(out) :: debug
@@ -141,9 +143,19 @@ subroutine INITIALIZE(debug)
          print *, 'ngrd_max = ', ngrd_max
          stop
       end if
+
+! initialize resampled boundary points
+	  ndres = ibeta*nd
+	  nbkres = (k + 1 -k0)*ndres
+	  hres = 2.d0*pi/ndres
+	  ig = 10
+
+! initialize number of boxes 
+	  nb = nd/5
 ! initialize close evaluation grid
-	  nr = 5
-	  ntheta = 250
+	  nr = 2
+	  ntheta = 10
+
 end subroutine INITIALIZE
 
 !----------------------------------------------------------------------
@@ -556,55 +568,136 @@ end subroutine GET_SOL_GRID
 
 !-----------------------------------------------------------------------
 
-subroutine GET_CLOSEEVAL_SOL_GRID(ugrd_bad, umin_bad, umax_bad)
+
+subroutine GET_CLOSEEVAL_SOL_GRID(mu_res, A_log,ugrd_bad, & 
+							umin_bad, umax_bad)
 
 ! Calculate solution at grid points in the bad region. 
 
-   use geometry_mod, only: k0, k, pi, h, eye, z, dz, bounded, &
-                           zgrd_bad, z0_box,nr, ntheta, nd,   &
-						   X_DUMP 
+   use geometry_mod, only: k0, k, pi, h, nd, nbk, eye, z, dz, bounded, &
+                           nb,zgrd_bad, xgrd_bad, ygrd_bad, z0_box, &
+						   nx, ny, nr, ntheta, ndres, nbkres, & 
+						   z_res, dz_res, hres, ibeta,zk, n_neigh, &
+						   neigh_boxes,X_DUMP, GET_NEAR_POINTS 
 
 
    use laplace_system_mod, only: cm, p
 
    implicit none
+   real(kind=8), intent(in) :: mu_res(nbkres), A_log(k-k0)
    real(kind=8), intent(out) :: ugrd_bad((k-k0+1)*nr*ntheta), &
 							umin_bad, umax_bad
 
 
 ! local variables
-   integer :: i, j, ipoint, kbod,nb, im, ibox, iibox
-   complex(kind=8):: zpoint, z0
+   integer :: i, j, ipoint, kbod, im, ibox(nd), &
+			  iibox, istart, llimit, rlimit, icl, jcl, ntarget
+   complex(kind=8):: zpoint, z0, zcauchy, z2pii
+   real(kind=8):: magdz
+
+! FMM work arrays
+   integer :: iprec, ifpot, ifgrad, ifhess,  &
+              ifpottarg, ifgradtarg, ifhesstarg, ier
+   real(kind=8) :: source(2,nbkres), & 
+					target(2,(k-k0+1)*nr*ntheta), targ(2,2)
+   complex(kind=8) :: dipstr(nbkres), pot(nbkres), grad(2,nbkres), &
+                      hess(3,nbkres), pottarg((k-k0+1)*nr*ntheta), & 
+				      gradtarg(2, (k-k0+1)*nr*ntheta), &
+                      hesstarg(3, (k-k0+1)*nr*ntheta)
+
 	
-	nb = nd/5
+	
 	umin_bad = 1.d10
 	umax_bad = -1.d10
+    z2pii = 1.d0/(2.d0*pi*eye)
 
+	 do j = 1, ntheta	
+	  	ibox(j) = -1
+	  	do iibox = 1, nb
+		  if((j.ge.(iibox-0.5d0)*ntheta/nb) .and. &
+				j.lt.(iibox + 0.5d0)*ntheta/nb) then
+				ibox(j) = iibox
+			end if
+	  	end do			
+		if(ibox(j).eq.-1) then
+			ibox(j) = nb
+		end if
+	 end do
+
+!
+!   Define grid target points
+
+	ntarget = (k - k0 + 1)*nr*ntheta
+	do i = 1, ntarget  
+               target(1, i) = xgrd_bad(i)
+               target(2, i) = ygrd_bad(i)
+              
+    end do
+
+    call PRINF (' Number of active points in the bad grid = *', ntarget, 1)
+      
+!
+!   Assemble arrays for FMM call
+	
+    do i = 1, nbkres
+         source(1, i) = dreal(z_res(i))
+         source(2, i) = dimag(z_res(i))
+         dipstr(i) = -1.d0*hres*mu_res(i)*z2pii*dz_res(i)
+    end do
+
+! set parameters for FMM routine lfmm2dparttarg
+	
+      iprec = 5   ! err < 10^-14
+      ifpot = 1
+      ifgrad = 0
+      ifhess = 0
+      ifpottarg = 1
+      ifgradtarg = 0
+      ifhesstarg = 0
+      
+! call FMM
+
+      call PRINI(0, 13)
+      call zfmm2dparttarg(ier, iprec, nbkres, source, &
+                          dipstr, ifpot, pot, ifgrad,  &
+                          grad, ifhess, hess, ntarget, target, ifpottarg, &
+                          pottarg, ifgradtarg, gradtarg, ifhesstarg, hesstarg)
+      call PRINI(6, 13)
+      
+      if (ier.eq.4) then
+         print *, 'ERROR IN FMM: Cannot allocate tree workspace'
+         stop
+      else if(ier.eq.8) then
+         print *, 'ERROR IN FMM: Cannot allocate bulk FMM workspace'
+         stop
+      else if(ier.eq.16) then
+         print *, 'ERROR IN FMM: Cannot allocate multipole expansion workspace' 
+         stop
+      end if
+	  
+! For points far enough from boundary, unpack into grid
+   
+         
 	do kbod = k0, k
 		do i = 1, nr
 			do j = 1,ntheta
-				ipoint = kbod*nr*ntheta + (i-1)*ntheta + j
-				ibox = j/(ntheta/nb) + 1
-				if(mod(j, ntheta/nb).eq.0) then
-					ibox = ibox - 1
-				end if
-!				do iibox = 1, nb
-!					if((j.ge.(iibox-0.5d0)*ntheta/nb) .and. &
-!						j.lt.(iibox + 0.5d0)*ntheta/nb) then
-!						ibox = iibox
-!					end if
-!				end do			
+				ipoint = (kbod - k0)*nr*ntheta + (i-1)*ntheta + j	
 				zpoint = zgrd_bad(ipoint)
-				z0 = z0_box(kbod+1,ibox)
-				ugrd_bad(ipoint) = 0.d0
+				z0 = z0_box(kbod - k0 + 1,ibox(j))	
+				ugrd_bad(ipoint) = dreal(pottarg(ipoint))
 				do im = 1, p
 					ugrd_bad(ipoint) = ugrd_bad(ipoint) + &
-						dreal(cm(kbod+1, ibox, im)*((zpoint - z0)**(im-1)))	
-						
+						dreal(cm(kbod - k0 + 1, ibox(j), im)*((zpoint - z0)**(im-1)))			
 				end do
-			    ugrd_bad(ipoint) = -ugrd_bad(ipoint)
-
-
+			 	 
+				do icl = 1, n_neigh(kbod - k0 + 1, ibox(j))
+						jcl = neigh_boxes(kbod - k0 + 1, ibox(j), icl)
+       					zcauchy = mu_res(jcl)*dz_res(jcl)/ &
+						(z_res(jcl) - zpoint)
+						zcauchy = hres*zcauchy*z2pii
+						ugrd_bad(ipoint) = ugrd_bad(ipoint) &
+								- dreal(zcauchy)
+				end do
 				umin_bad = min(umin_bad, ugrd_bad(ipoint))
 				umax_bad = max(umax_bad, ugrd_bad(ipoint))
 			end do			
@@ -617,13 +710,13 @@ subroutine GET_CLOSEEVAL_SOL_GRID(ugrd_bad, umin_bad, umax_bad)
       write(31, '(2(D15.6))') umin_bad, umax_bad
       write(31, *) '];'
 
-      call X_DUMP(ugrd_bad,(k-k0)*nr*ntheta, 31)
+      call X_DUMP(ugrd_bad,(k-k0+1)*nr*ntheta, 31)
 
       close(31)
 
 
 end subroutine GET_CLOSEEVAL_SOL_GRID
-!----------------------------------------------------------------------
+!-----------------------------------------------------------------------
 
 subroutine CHECK_ERROR_GRID(i_grd, x_grd, y_grd, u_grd, umin, umax)
 
@@ -712,4 +805,4 @@ subroutine CHECK_ERROR_CLOSEEVAL_GRID(ugrd_bad,umin_bad,umax_bad)
          
 	  close(51)
 end subroutine CHECK_ERROR_CLOSEEVAL_GRID
-
+!------------------------------------------------------------------------

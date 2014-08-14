@@ -596,23 +596,29 @@ subroutine MATVEC_DEBUG(N, XX, YY, NELT, IA, JA, A, ISYM)
 end subroutine MATVEC_DEBUG
 
 !----------------------------------------------------------------------
-subroutine BUILD_BARNETT (mu)
+
+
+subroutine BUILD_BARNETT (mu,mu_res)
 ! Reference:
 ! Alex Barnett, EVALUATION OF LAYER POTENTIALS CLOSE TO THE BOUNDARY FOR LAPLACE AND 
 ! HELMHOLTZ PROBLEMS ON ANALYTIC PLANAR DOMAINS
 ! SIAM J. Sci. Stat. Comput. 2012
 ! 
-   use geometry_mod, only: k0, k, nd, nbk, z_res, dz_res, ibeta, XY_PLOT, pi, &
-						   zgrd_bad,nr, ntheta, z0_box, eye
+   use geometry_mod, only: k0, k, nd, nb,nbk, z_res, dz_res, ibeta, &
+						   XY_PLOT, pi, zgrd_bad,nr, ntheta, &
+						   z0_box, eye, nbkres, ndres, &
+						   hres, neigh_boxes, &
+						   n_neigh,GET_NEAR_POINTS
    implicit none
    real(kind=8), intent(in) :: mu(nbk)
+   real(kind=8), intent(out) :: mu_res(ibeta*nbk)
 !   real(kind=8), intent(out) :: cm(k0:k,nd/5,p)
 !
 ! local variables
-
-   integer :: i, kbod, istart, istartr, nb, ipoint, im, m, ibox, inum, j, nbkres
-   real(kind=8) :: mu_res(ibeta*nbk), alpha(nd), alpha_res(ibeta*nd), hres
-   complex(kind=8) :: zmu(nd), zmu_res(ibeta*nd), work(3*nd+3*ibeta*nd+20), &
+   integer :: i, kbod, istart, istartr, ipoint, &
+			  im, ibox, inum, j, llimit, rlimit, fac, jpoint
+   real(kind=8) :: alpha(nd), alpha_res(ndres)
+   complex(kind=8) :: zmu(nd), zmu_res(ndres), work(3*nd+3*ndres+20), &
 					  zcauchy, z2pii
    character(32) :: options, optionsb
    
@@ -627,26 +633,26 @@ subroutine BUILD_BARNETT (mu)
          alpha(i) = (i-1.d0)*2.d0*pi/nd
       end do
      ! call prin2(' alpha=*', alpha, nd)
-      do i = 1, ibeta*nd
-         alpha_res(i) = (i-1.d0)*2.d0*pi/(ibeta*nd)
+      do i = 1, ndres
+         alpha_res(i) = (i-1.d0)*2.d0*pi/(ndres)
       end do
 !
 ! interpolate density to M = ibeta*nd points on each boundary curve.
-      nb = nd/5
+      
       istart = 0
       istartr = 0
       
-      m = ibeta*nd
+
       do kbod = k0, k
          zmu = mu(istart+1:istart+nd)
          call XY_PLOT(alpha, mu(istart+1), nd, options, 51)
        !  call PRIN2 ('zmu = *', zmu, 2*nd)
-         call FINTERC (zmu, zmu_res, nd, m, work)
-         mu_res(istartr+1:istartr+m) = zmu_res
-         call XY_PLOT (alpha_res, mu_res(istartr+1), m, optionsb, 52)
+         call FINTERC (zmu, zmu_res, nd, ndres, work)
+         mu_res(istartr+1:istartr+ndres) = zmu_res
+         call XY_PLOT (alpha_res, mu_res(istartr+1), ndres, optionsb, 52)
        !  call PRIN2 ('mu_res = *', mu_res, m)
          istart = istart + nd
-         istartr = istartr + m
+         istartr = istartr + ndres
       end do
       close(51)
       close(52)
@@ -654,53 +660,37 @@ subroutine BUILD_BARNETT (mu)
 ! Calculate the coefficients c_m
 
 
-
-	z2pii = -1.d0/(2.d0*pi*eye)
-	hres = 2.d0*pi/m
- 	nbkres = ibeta*nbk
-	do kbod = k0, k
-		do ibox = 1, nb
-			do j = 1, p		
-				cm(kbod+1, ibox, j) = 0.d0
-			end do 
-		end do
-	end do
-
+	z2pii = 1.d0/(2.d0*pi*eye) 
+  	call GET_NEAR_POINTS()
+	fac = ibeta*nd/nb
 
 	do kbod = k0, k
 		do ibox = 1,nb
-			do j = 1, p		
-				do ipoint = 1, nbkres
-					zcauchy = mu_res(ipoint)*dz_res(ipoint)/ &
-						((z_res(ipoint) - z0_box(kbod+1,ibox))**j)
-					zcauchy = hres*zcauchy*z2pii
-					!if(kbod .eq. k0) then
-					!	zcauchy = -1.d0*zcauchy
-					!end if
-					cm(kbod+1, ibox, j) = cm(kbod+1, ibox, j) + &
-					zcauchy
-				end do
-			end do  
+		!	print 1001, kbod, ibox, llimit, rlimit
+		!	1001 format(I3, I5, I5, I5)
+			istart = 0	
+			do j = 1, p
+			!	print 199, ibox, llimit , rlimit
+			!	199 format(I5, I5, I5)	
+					cm(kbod+1, ibox, j) = 0.d0
+
+					do jpoint = 1, n_neigh(kbod - k0 +1, ibox)	
+						ipoint = neigh_boxes(kbod - k0 +1, ibox, jpoint)
+						zcauchy = mu_res(ipoint)*dz_res(ipoint)/ &
+						((z_res(ipoint) - z0_box(kbod - k0 +1,ibox))**j)
+						zcauchy = hres*zcauchy*z2pii
+						!if(kbod .eq. k0) then
+						!	zcauchy = -1.d0*zcauchy
+						!end if
+						cm(kbod - k0 +1, ibox, j) = cm(kbod -k0 +1, ibox, j) + &
+								zcauchy
+						istart = istart + 1
+					end do
+				!	cm(kbod - k0 + 1, ibox, j) = cm(kbod - k0 + 1, ibox, j)*ndres/istart	
+
+			end do
 		end do
 	end do
- 
-				 
-	 ! do kbod = k0, k
-	 !	do 	ipoint = 1, nr*ntheta
-	 !		zb_g = zgrd_bad(kbod*nr*ntheta + ipoint)
-	 !		ibox = ipoint/ntheta/nb + 1
-	 !			do im = 1, p
-	 !			cm(kbod, ibox, i) = 0.d0
-	 !			do i = 1,m
-	 !				cm(kbod, ibox, i) = cm(kbod, ibox, i) + &
-	 !					mu_res(inum)/(zgrd_bad(kbod*nr*ntheta + ipoint) - &
-	 !					 z0_box(ibox))**(im + 1)!*dzgrd_bad(kbod*nr*ntheta + ipoint) 
-	 !		  
-	 !			end do
-     !
-	 !		end do 			
-	 !	end do
-	 ! end do
 end subroutine BUILD_BARNETT
 
 

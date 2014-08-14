@@ -41,17 +41,22 @@ module geometry_mod
 ! trapezoid rule breaks down
    real(kind=8) :: x_bad(nmax), y_bad(nmax), ds_bad(nmax)
    complex(kind=8) :: z_bad(nmax), dz_bad(nmax), z0_box(kmax,nmax/5)
-!
+!!
 ! Pointer arrays to points in grid that are in "close" region, and which 
 ! contour they are close to
    integer :: n_close(kmax), i_close(ngrd_max), j_close(ngrd_max), &
-              ic_pnt(kmax+1) 
+              ic_pnt(kmax+1), neigh_boxes(kmax,nmax/5,nmax/5), &
+			  n_neigh(kmax,nmax/5) 
 !
 ! resampled domain variables
-   integer, parameter :: ibeta = 4, p = 20
-   real(kind=8) :: x_res(ibeta*nmax), y_res(ibeta*nmax), ds_res(ibeta*nmax)
+   integer, parameter :: ibeta = 4, p = 20, ialpha = 10
+   integer ::  ndres, nbkres, ig, nb
+   real(kind=8) :: hres, x_res(ibeta*nmax), y_res(ibeta*nmax), & 
+				  ds_res(ibeta*nmax)
    complex(kind=8) :: z_res(ibeta*nmax), dz_res(ibeta*nmax)
-!
+   integer :: inear_box(nmax/5, ibeta*nmax)	
+
+
 ! Grid variables
    integer :: nx, ny, i_grd(ngrd_max), nr, ntheta
    real(kind=8) :: x_grd(ngrd_max), y_grd(ngrd_max)
@@ -59,7 +64,8 @@ module geometry_mod
    complex(kind=8):: zgrd_bad(ngrd_max)!, dzgrd_bad(ngrd_max)
       
 contains
-   
+ 
+  
 !----------------------------------------------------------------------
 
 subroutine CURVE_PARAM(th, kbod, xp, yp, xdot, ydot, xddot, yddot)
@@ -436,6 +442,51 @@ subroutine BUILD_CLOSEEVAL_GRID()
 end subroutine BUILD_CLOSEEVAL_GRID
 
 !----------------------------------------------------------------------
+
+subroutine GET_NEAR_POINTS()
+
+!temporarily assuming equal sized boxes.
+! marks points within ig*boxradius of the center of ibox.	
+
+	implicit none
+
+! local variables
+	integer:: fac, ibox, jpoint, &
+				i, fpoint, istart, kbod, icount
+	real(kind=8):: box_rad
+	complex(kind=8):: z1, z2 
+
+
+
+	fac = ibeta*nd/nb
+	icount = 0
+	do kbod = k0, k
+		do ibox = 1, nb
+			z1 = z0_box(kbod- k0 +1, ibox)
+			fpoint = (kbod - k0)*ndres +  (ibox - 1)*fac + 1
+			box_rad = cdabs(z1 - z_res(fpoint)) 
+			istart = 1
+			do jpoint = 1,(k - k0 + 1)*ndres			
+				z2 = z_res(jpoint)
+				if(cdabs(z1 - z2) .le. ig*box_rad) then
+					neigh_boxes(kbod + 1, ibox, istart) = jpoint
+					istart = istart + 1
+					!			print *, kbod, ibox, neigh_boxes(kbod + 1, ibox, istart - 1)
+				end if
+			end do
+			!print *, "istart = ", istart
+			if(istart .ne. 2049 ) then
+						icount = icount + 1
+			end if
+
+			n_neigh(kbod - k0 + 1, ibox) = istart - 1
+		end do
+	end do
+	print *, "Number of boxes which are not neighbours with everyone ", icount
+end subroutine GET_NEAR_POINTS
+
+!------------------------------------------------------------------
+
 
 subroutine RESAMPLE_DOMAIN ()
 !
