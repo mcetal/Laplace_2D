@@ -34,6 +34,7 @@ module laplace_system_mod
 
 contains
 
+
 !----------------------------------------------------------------------
 
 subroutine SOLVE (rhs, soln, mu, A_log)
@@ -78,7 +79,7 @@ subroutine SOLVE (rhs, soln, mu, A_log)
 !  igwork(4) = 0 - no preconditioner
 !  igwork(4) < 0 - preconditioner on the left (the only option here!)
 !  igwork(4) > 0 - preconditioner on the right
-      igwork(4) = -1
+      igwork(4) = 0
 
 !  provide initial guess soln
       do i = 1, norder
@@ -88,10 +89,10 @@ subroutine SOLVE (rhs, soln, mu, A_log)
 !  factor preconditioner
       if (igwork(4) < 0) then  
          t0 = etime(timep)
-         if ((bounded) .and. (dirichlet)) then  
-            call SCHUR_FACTOR_DIR_BNDED(schur, ipvtbf)
-         end if
-         t1 = etime(timep)
+        ! if ((bounded) .and. (dirichlet)) then  
+          !  call SCHUR_FACTOR_DIR_BNDED(schur, ipvtbf)
+        ! end if
+        ! t1 = etime(timep)
          print *, 'Time in factoring preconditioner = ', t1 - t0
       end if
       
@@ -120,12 +121,16 @@ subroutine SOLVE (rhs, soln, mu, A_log)
 !  unpack RHS into U and A_log
       do i = 1,nbk
          mu(i) = soln(i)
-      end do 
-      do kbod = 1, k
-         A_log(kbod) = soln(nbk + kbod)
       end do
+	  if(k.gt.0) then 
+      	do kbod = 1, k
+        	 A_log(kbod) = soln(nbk + kbod)
+      	end do
+		call PRIN2('A_log = *', A_log, k)
+	  end if
+	  
  !!!     call PRIN2(' mu = *', mu, nbk) 
-      call PRIN2('A_log = *', A_log, k)
+    
 
 end subroutine SOLVE
 
@@ -167,15 +172,15 @@ subroutine SCHUR_FACTOR_DIR_BNDED(schur, ipvtbf)
    
       print *, '** In Preconditioner factoring routine  **'
 
-      istart = nd
-      do ibod = 1, k
-         do kbod = 1, k
+      istart = 0
+      do ibod = k0, k
+         do kbod = k0, k
             sum1 = 0.d0
             do i = 1, nd
                sum1 = sum1 &
                       + dlog(cdabs(z(istart+i) - zk(kbod + 1 - k0)))
             end do
-            schur(ibod, kbod) = sum1
+            schur(ibod+1, kbod+1) = sum1
          end do
          istart = istart + nd
       end do
@@ -595,8 +600,8 @@ subroutine MATVEC_DEBUG(N, XX, YY, NELT, IA, JA, A, ISYM)
 
 end subroutine MATVEC_DEBUG
 
-!----------------------------------------------------------------------
 
+!-------------------------------------------------------------------------
 
 subroutine BUILD_BARNETT (mu,mu_res)
 ! Reference:
@@ -691,7 +696,24 @@ subroutine BUILD_BARNETT (mu,mu_res)
 			end do
 		end do
 	end do
+ 
+				 
+	 ! do kbod = k0, k
+	 !	do 	ipoint = 1, nr*ntheta
+	 !		zb_g = zgrd_bad(kbod*nr*ntheta + ipoint)
+	 !		ibox = ipoint/ntheta/nb + 1
+	 !			do im = 1, p
+	 !			cm(kbod, ibox, i) = 0.d0
+	 !			do i = 1,m
+	 !				cm(kbod, ibox, i) = cm(kbod, ibox, i) + &
+	 !					mu_res(inum)/(zgrd_bad(kbod*nr*ntheta + ipoint) - &
+	 !					 z0_box(ibox))**(im + 1)!*dzgrd_bad(kbod*nr*ntheta + ipoint) 
+	 !		  
+	 !			end do
+     !
+	 !		end do 			
+	 !	end do
+	 ! end do
 end subroutine BUILD_BARNETT
-
 
 end module laplace_system_mod

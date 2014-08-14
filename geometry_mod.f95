@@ -40,8 +40,10 @@ module geometry_mod
 ! Boundary of "bad" part of domain - i.e. region close enough to boundary that
 ! trapezoid rule breaks down
    real(kind=8) :: x_bad(nmax), y_bad(nmax), ds_bad(nmax)
+   integer :: nb
    complex(kind=8) :: z_bad(nmax), dz_bad(nmax), z0_box(kmax,nmax/5)
-!!
+
+!
 ! Pointer arrays to points in grid that are in "close" region, and which 
 ! contour they are close to
    integer :: n_close(kmax), i_close(ngrd_max), j_close(ngrd_max), &
@@ -50,8 +52,8 @@ module geometry_mod
 !
 ! resampled domain variables
    integer, parameter :: ibeta = 4, p = 20, ialpha = 10
-   integer ::  ndres, nbkres, ig, nb
-   real(kind=8) :: hres, x_res(ibeta*nmax), y_res(ibeta*nmax), & 
+   integer ::  ndres, nbkres, ig
+   real(kind=8) :: g, hres, x_res(ibeta*nmax), y_res(ibeta*nmax), & 
 				  ds_res(ibeta*nmax)
    complex(kind=8) :: z_res(ibeta*nmax), dz_res(ibeta*nmax)
    integer :: inear_box(nmax/5, ibeta*nmax)	
@@ -64,91 +66,85 @@ module geometry_mod
    complex(kind=8):: zgrd_bad(ngrd_max)!, dzgrd_bad(ngrd_max)
       
 contains
- 
-  
 !----------------------------------------------------------------------
-
 subroutine CURVE_PARAM(th, kbod, xp, yp, xdot, ydot, xddot, yddot)
 !
-!  The initial curve parameterization is given in term of th
-!  Inputs:
-!    th:  parameter value
-!    kbod: the particular body index point is on
-!  Returns:
-!    xp, yp:  coordinates of point
-!    xdot, ydot:  derivative of position wrt parameter
-!    xddot, yddot:  2nd derivative of position wrt parameter
+! The initial curve parameterization is given in term of th
+! Inputs:
+! th: parameter value
+! kbod: the particular body index point is on
+! Returns:
+! xp, yp: coordinates of point
+! xdot, ydot: derivative of position wrt parameter
+! xddot, yddot: 2nd derivative of position wrt parameter
 !
-   implicit none
-   real(kind=8), intent(in) :: th
-   integer, intent(in) :: kbod
-   real(kind=8), intent(out) :: xp, yp, xdot, ydot, xddot, yddot
-   real(kind=8) :: ai, bi, N, a2, b2, rnorm, radius, rdot, rddot, R, &
-                   anu, den, ddot, dddot, cs, sn, eps, snn, csn, thetax
-
-         N = ncyc(kbod+1-k0)
-         ai = ak(kbod+1-k0)
-         bi = bk(kbod+1-k0)
-         thetax = 0.d0
-         
-         if (N.eq.0) then
-            cs = dcos(th-thetax)
-            sn = dsin(th-thetax)
-            a2 = (ai)**2
-            b2 = (bi)**2
-            rnorm = dsqrt(b2*cs**2 + a2*sn**2)
-            radius = ai*bi/rnorm
-            rdot = -ai*bi*cs*sn*(-b2+a2)/rnorm**3
-            rddot =  -ai*bi*(2.d0*a2*b2*cs**2*sn**2                &
-                           +a2**2*cs**4 + a2*b2-a2**2+b2**2*cs**4  &
-                           -2.d0*b2**2*cs**2)/rnorm**5
-            xp = radius*dcos(th)
-            yp = radius*dsin(th)
-
-            cs = dcos(th)
-            sn = dsin(th)
-            xdot = rdot*cs - radius*sn
-            ydot = rdot*sn + radius*cs
-            xddot = rddot*cs - 2.d0*rdot*sn - radius*cs
-            yddot = rddot*sn + 2.d0*rdot*cs - radius*sn
-           elseif (N.lt.0) then
-            R = ai
-            anu = bi
-            den = (1.d0-2.d0*anu*dcos(2.d0*th)+anu**2)  &
-                 *dsqrt(1.d0+anu**2)
-            ddot = 4.d0*anu*dsin(2.d0*th)*dsqrt(1.d0+anu**2)
-            dddot = 8.d0*anu*dcos(2.d0*th)*dsqrt(1.d0+anu**2)
-            xp = (1.d0-anu**2)*(1.d0-anu)*R*dsqrt(2.d0)*dcos(th)/den
-            yp = (1.d0-anu**2)*(1.d0+anu)*R*dsqrt(2.d0)*dsin(th)/den
-            xdot = -(1.d0-anu**2)*(1.d0-anu)*R*dsqrt(2.d0)*dsin(th)/den  &
-                   -xp*ddot/den            
-            xddot = -xp   &
-                    +(1.d0-anu**2)*(1.d0-anu)*R*dsqrt(2.d0)  &
-                                  *dsin(th)*ddot/den**2   &
-                    - xdot*ddot/den - xp*dddot/den    &
-                    + xp*ddot**2/den**2
-            ydot = (1.d0-anu**2)*(1.d0+anu)*R*dsqrt(2.d0)*dcos(th)/den  &
-                   -yp*ddot/den
-            yddot = -yp  &
-                    -(1.d0-anu**2)*(1.d0+anu)*R*dsqrt(2.d0)  &
-                                  *dcos(th)*ddot/den**2  &
-                    - ydot*ddot/den - yp*dddot/den   &
-                    + yp*ddot**2/den**2 
-           else
-            eps = bi
-            cs = dcos(th)
-            sn = dsin(th)
-            snn = dsin(N*th)
-            csn = dcos(N*th)
-            xp = ai*cs + bi*csn
-            yp = ai*sn - bi*snn
-            xdot = -ai*sn - N*bi*snn
-            xddot = -ai*cs - N**2*bi*csn
-            ydot = ai*cs - N*bi*csn
-            yddot = -ai*sn + N**2*bi*snn
-         end if
-
+	implicit none
+	real(kind=8), intent(in) :: th
+	integer, intent(in) :: kbod
+	real(kind=8), intent(out) :: xp, yp, xdot, ydot, xddot, yddot
+	real(kind=8) :: ai, bi, N, a2, b2, rnorm, radius, rdot, rddot, R, &
+	anu, den, ddot, dddot, cs, sn, eps, snn, csn, thetax
+	N = ncyc(kbod+1-k0)
+	ai = ak(kbod+1-k0)
+	bi = bk(kbod+1-k0)
+	thetax = 0.d0
+	if (N.eq.0) then
+	cs = dcos(th-thetax)
+	sn = dsin(th-thetax)
+	a2 = (ai)**2
+	b2 = (bi)**2
+	rnorm = dsqrt(b2*cs**2 + a2*sn**2)
+	radius = ai*bi/rnorm
+	rdot = -ai*bi*cs*sn*(-b2+a2)/rnorm**3
+	rddot = -ai*bi*(2.d0*a2*b2*cs**2*sn**2 &
+		+a2**2*cs**4 + a2*b2-a2**2+b2**2*cs**4 &
+		-2.d0*b2**2*cs**2)/rnorm**5
+	xp = radius*dcos(th)
+	yp = radius*dsin(th)
+	cs = dcos(th)
+	sn = dsin(th)
+	xdot = rdot*cs - radius*sn
+	ydot = rdot*sn + radius*cs
+	xddot = rddot*cs - 2.d0*rdot*sn - radius*cs
+	yddot = rddot*sn + 2.d0*rdot*cs - radius*sn
+	elseif (N.lt.0) then
+	R = ai
+	anu = bi
+	den = (1.d0-2.d0*anu*dcos(2.d0*th)+anu**2) &
+	*dsqrt(1.d0+anu**2)
+	ddot = 4.d0*anu*dsin(2.d0*th)*dsqrt(1.d0+anu**2)
+	dddot = 8.d0*anu*dcos(2.d0*th)*dsqrt(1.d0+anu**2)
+	xp = (1.d0-anu**2)*(1.d0-anu)*R*dsqrt(2.d0)*dcos(th)/den
+	yp = (1.d0-anu**2)*(1.d0+anu)*R*dsqrt(2.d0)*dsin(th)/den
+	xdot = -(1.d0-anu**2)*(1.d0-anu)*R*dsqrt(2.d0)*dsin(th)/den &
+		-xp*ddot/den
+	xddot = -xp &
+	+(1.d0-anu**2)*(1.d0-anu)*R*dsqrt(2.d0) &
+	*dsin(th)*ddot/den**2 &
+	- xdot*ddot/den - xp*dddot/den &
+	+ xp*ddot**2/den**2
+	ydot = (1.d0-anu**2)*(1.d0+anu)*R*dsqrt(2.d0)*dcos(th)/den &
+		-yp*ddot/den
+	yddot = -yp &
+		-(1.d0-anu**2)*(1.d0+anu)*R*dsqrt(2.d0) &
+		*dcos(th)*ddot/den**2 &
+		- ydot*ddot/den - yp*dddot/den &
+		+ yp*ddot**2/den**2
+	else
+		eps = bi
+		cs = dcos(th)
+		sn = dsin(th)
+		snn = dsin(N*th)
+		csn = dcos(N*th)
+		xp = ai*cs + bi*csn
+		yp = ai*sn - bi*snn
+		xdot = -ai*sn - N*bi*snn
+		xddot = -ai*cs - N**2*bi*csn
+		ydot = ai*cs - N*bi*csn
+		yddot = -ai*sn + N**2*bi*snn
+	end if
 end subroutine CURVE_PARAM
+!----------------------------------------------------------------------
    
 !----------------------------------------------------------------------
 
@@ -281,7 +277,7 @@ subroutine BAD_DOMAIN_BNDRY()
 
       call DCFFTI (nd, wsave)
       
-      alpha_bad = 5.d0*h
+      alpha_bad = 2.d0*pi/nb
       call PRIN2 (' alpha_bad = *', alpha_bad, 1)
       istart = 0
       istartb = 0
@@ -292,7 +288,7 @@ subroutine BAD_DOMAIN_BNDRY()
          call DCFFTF (nd, zf, wsave)
 !
 ! first use these Fourier coefficients to calculate the box centres
-         do ibox = 1, nd/5
+         do ibox = 1, nb
             if (kbod .eq. 0) then 
                theta = ibox*alpha_bad + 0.5d0*eye*alpha_bad
              else
@@ -340,7 +336,6 @@ subroutine BAD_DOMAIN_BNDRY()
 
 end subroutine BAD_DOMAIN_BNDRY
 
-
 !----------------------------------------------------------------------
 
 
@@ -375,7 +370,7 @@ subroutine BUILD_CLOSEEVAL_GRID()
 
       call DCFFTI (nd, wsave)
       
-      alpha_bad = 5.d0*h
+      alpha_bad = 2.d0*pi/nb
       istart = 0
       istartb = 0
 	  
@@ -428,7 +423,6 @@ subroutine BUILD_CLOSEEVAL_GRID()
       open(unit = 33, file = 'mat_plots/ygrid_bad.m')
 
    
-
       call X_DUMP(xgrd_bad,(k-k0+1)*nr*ntheta, 32)
       call X_DUMP(ygrd_bad, (k-k0+1)*nr*ntheta,33)
 
@@ -487,7 +481,6 @@ end subroutine GET_NEAR_POINTS
 
 !------------------------------------------------------------------
 
-
 subroutine RESAMPLE_DOMAIN ()
 !
 ! Resample the boundary points to ibeta*nd points per curve
@@ -511,11 +504,11 @@ subroutine RESAMPLE_DOMAIN ()
       istart = 0
       istartr = 0
       do kbod = k0, k
-         call FINTERC (z(istart+1), z_res(istartr+1), nd, ibeta*nd, work)
-         call FINTERC (dz(istart+1), dz_res(istartr+1), nd, ibeta*nd, work)
+         call FINTERC (z(istart+1), z_res(istartr+1), nd, ndres, work)
+         call FINTERC (dz(istart+1), dz_res(istartr+1), nd, ndres, work)
          call Z_PLOT(z_res(istartr+1), nd*ibeta, options, 31)
          istart = istart + nd
-         istartr = istartr + ibeta*nd
+         istartr = istartr + ndres
       end do
       close(31)
          
@@ -622,7 +615,7 @@ subroutine BUILD_GRID(i_grd, x_grd, y_grd)
     
          if (ier.eq.4) then
             print *, 'ERROR IN FMM: Cannot allocate tree workspace'
-            stop
+           stop
          else if(ier.eq.8) then
             print *, 'ERROR IN FMM: Cannot allocate bulk FMM workspace'
             stop
@@ -725,6 +718,32 @@ subroutine BUILD_GRID(i_grd, x_grd, y_grd)
 end subroutine BUILD_GRID
 
 !----------------------------------------------------------------------
+
+subroutine POPULATE_INEAR_BOX()
+
+	!local variables
+	implicit none
+	integer :: nb,ibox, kbod, ipoint, istart, inum
+		
+	nb = nd/5
+
+	do ibox =  1, nb
+		istart = 1
+		do kbod = k0, k
+			do ipoint = 1, ndres
+				inum = kbod*ndres + ipoint
+				if(cdabs(z_res(inum) - z0_box(kbod, ibox)).le.g) then
+					inear_box(ibox, istart) = inum
+					istart = istart + 1
+				end if
+			end do   
+		end do
+	end do
+
+end subroutine POPULATE_INEAR_BOX
+
+
+!------------------------------------------------------------------------
 
 subroutine ORGANIZE_CLOSE_POINTS (i_grd)
 !
@@ -949,7 +968,10 @@ subroutine X_DUMP(x, n, iw)
       write(iw, *) '];'
       
 end subroutine X_DUMP
-!-------------------------------------------------------------
+
+
+
+!----------------------------------------------------------------------
 
 subroutine Z_PLOT(z, n, options, iw)
 !
