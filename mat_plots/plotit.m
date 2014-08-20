@@ -21,7 +21,7 @@ mesh(xg,yg,igc)
 
 figure(2)
 geo_contours
-target_points
+
 
 
 figure(5)
