@@ -986,6 +986,31 @@ end subroutine X_DUMP
 
 !----------------------------------------------------------------------
 
+
+subroutine PARAM_DUMP(x, y, z, iw)
+! This subroutine writes out the vector x 
+! 
+   implicit none
+   integer, intent(in) ::  iw
+   integer, intent(in) :: x,y,z
+
+! local variables
+   integer :: i
+   
+      
+
+      write(iw, *) 'K = ', x
+	  write(iw, *) 'NR = ', y
+      write(iw, *) 'NT = ', z
+	  
+      
+end subroutine PARAM_DUMP
+
+
+
+!----------------------------------------------------------------------
+
+
 subroutine Z_PLOT(z, n, options, iw)
 !
 ! This subroutine writes out the curve specified by its nodes z in 

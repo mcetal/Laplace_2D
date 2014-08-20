@@ -24,20 +24,50 @@ geo_contours
 target_points
 
 
-
-
-xgrid_bad;
-xg_bad = sol;
-ygrid_bad;
-yg_bad = sol;
-ugrid_bad;
-ug_bad = sol;
-
-
 figure(5)
+du = ulim(2) - ulim(1);
+nc = 40;
+vc = ulim(1):du/nc:ulim(2);
+contour(xg, yg, ug, vc)
+hold on
+geo_contours
+hold on
+geo_bad_contours
+hold on
+
+xgrd_plot;
+xg = sol';
+ygrd_plot;
+yg = sol';
+
+bad_param;
+
+for ik = 1:K
+a = zeros(NT, NR);
+ugrd_bad_plot;
+ug = sol((ik-1)*NR*NT + 1:ik*NR*NT);
+a(:) = ug(:);
+
+
+xgrid_bad_plot;
+xg = sol((ik-1)*NR*NT + 1:ik*NR*NT);
+b = zeros(NT, NR);
+b(:) = xg(:);
+
+
+ygrid_bad_plot;
+yg = sol((ik-1)*NR*NT + 1:ik*NR*NT);
+c = zeros(NT, NR);
+c(:) = yg(:);
+
+
 du_bad = ulim(2) - ulim(1);
 nc = 40;
 vc = ulim(1):du_bad/nc:ulim(2);
-contour(xg_bad, yg_bad, ug_bad, vc)
+contour(b, c, a)
 hold on
-geo_contours
+%geo_contours
+%hold on
+%geo_bad_contours
+
+end 

@@ -88,7 +88,7 @@ subroutine INITIALIZE(debug)
 !   dirichlet :: true if Dirichlet BVP, false if Neumann
    use geometry_mod, only: pi, eye, kmax, npmax, nbk, k0, k, nd, h, &
                            bounded, nx, ny, ngrd_max, nr, ntheta, nb, &
-						   ndres, nbkres, hres, ibeta, ig, g
+						   ndres, nbkres, hres, ibeta, ig, PARAM_DUMP
    use laplace_system_mod, only: dirichlet
    implicit none
    logical, intent(out) :: debug
@@ -147,13 +147,18 @@ subroutine INITIALIZE(debug)
 	  ndres = ibeta*nd
 	  nbkres = (k + 1 -k0)*ndres
 	  hres = 2.d0*pi/ndres
-	  ig = 15
+	  ig = 10
 
 ! initialize number of boxes 
 	  nb = nd/4
 ! initialize close evaluation grid
 	  nr = 5
-	  ntheta = 50
+	  ntheta = 250
+		
+	  open(unit = 31, file="mat_plots/bad_param.m")
+	  call PARAM_DUMP((k-k0+1),nr, ntheta, 31)
+	  close(31)
+
 end subroutine INITIALIZE
 
 !----------------------------------------------------------------------
@@ -660,38 +665,18 @@ subroutine CHECK_ERROR_CLOSEEVAL_GRID(ugrd_bad,umin_bad,umax_bad)
 
       err = 0.d0
       u_inf = max(dabs(umin_bad), dabs(umax_bad))
-	  !nb = nd/5
-	  !do j = 1, ntheta	
-	  !	ibox(j) = -1
-	  !	do iibox = 1, nb
-	  !	  if((j.ge.(iibox-0.5d0)*ntheta/nb) .and. &
-	  !			j.lt.(iibox + 0.5d0)*ntheta/nb) then
-	  !			ibox(j) = iibox
-	  !		end if
-	  !	end do			
-	  !	if(ibox(j).eq.-1) then
-	  !		ibox(j) = nb
-	  !	end if
-	  !end do
-
+	 
 	
 	  do kbod = k0, k
       	do i = 1, nr
         	 do j = 1, ntheta
 				ipoint = kbod*nr*ntheta + (i-1)*ntheta + j
-				!ibox = j/(ntheta/nb) + 1
-				!if(mod(j, ntheta/nb).eq.0) then
-				!	ibox = ibox - 1
-				!end if
-			    z_grid = zgrd_bad(ipoint)
+				z_grid = zgrd_bad(ipoint)
                	u_ex_bad = U_EXACT(bounded, z_grid)	
                	err = max(err, dabs(u_ex_bad - ugrd_bad(ipoint)))
-				print 1000, kbod, i, j,u_ex_bad, ugrd_bad(ipoint)
-				1000 format(I3,I3,I5,2(D15.6))
-               !call PRIN2 ('u_ex_bad = *', u_ex_bad, 1)
-               !call PRIN2 ('  ugrd_bad = *', ugrd_bad(ipoint), 1)
-
-            end do
+				!print 1000, kbod, i, j,u_ex_bad, ugrd_bad(ipoint)
+				!1000 format(I3,I3,I5,2(D15.6))
+                end do
          end do
       end do
       
